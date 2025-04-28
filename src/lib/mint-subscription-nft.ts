@@ -1,0 +1,73 @@
+"use client";
+
+import { Connection, PublicKey, Keypair, clusterApiUrl, LAMPORTS_PER_SOL } from "@solana/web3.js";
+import { createUmi } from "@metaplex-foundation/umi-bundle-defaults";
+import { 
+  keypairIdentity, 
+  generateSigner, 
+  percentAmount,
+  publicKey as umiPublicKey
+} from "@metaplex-foundation/umi";
+import { createNft, mplTokenMetadata } from "@metaplex-foundation/mpl-token-metadata";
+
+const DEVNET_RPC = clusterApiUrl("devnet");
+
+export async function mintSubscriptionNFT({
+  wallet,
+  title,
+  description,
+  imageUri,
+}: {
+  wallet: Keypair;
+  title: string;
+  description: string;
+  imageUri: string;
+}) {
+  try {
+    // Setup UMI with the correct plugins
+    const umi = createUmi(DEVNET_RPC)
+      .use(mplTokenMetadata());
+      
+    // Convert Solana wallet to UMI signer format
+    const umiKeypair = {
+      publicKey: umiPublicKey(wallet.publicKey.toBytes()),
+      secretKey: wallet.secretKey,
+    };
+    
+    // Set the identity for UMI
+    umi.use(keypairIdentity(umiKeypair));
+    
+    // Generate a signer for this specific NFT mint
+    const nftMint = generateSigner(umi);
+    
+    console.log("Starting NFT mint process...");
+    
+    // Use the image URI directly instead of embedding metadata
+    // This avoids the "URI too long" error
+    const mintTx = await createNft(umi, {
+      mint: nftMint,
+      name: title,  
+      symbol: "SUB",
+      uri: imageUri, // Just use the image URI directly
+      sellerFeeBasisPoints: percentAmount(0), // 0% royalty
+      isMutable: true,
+    }).sendAndConfirm(umi);
+    
+    console.log("NFT created successfully");
+    console.log("Mint address:", nftMint.publicKey);
+    
+    return {
+      signature: mintTx.signature,
+      mintAddress: nftMint.publicKey
+    };
+  } catch (error: any) {
+    console.error("Error creating NFT:", error);
+    
+    // More descriptive error messages
+    if (error.message?.includes("Attempt to debit an account but found no record of a prior credit")) {
+      throw new Error("Your wallet doesn't have enough SOL. Please fund your wallet with devnet SOL.");
+    }
+    
+    throw error;
+  }
+}
