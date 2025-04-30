@@ -3,7 +3,7 @@ import SubscriptionForm from "@/components/subscription-form";
 
 export default function CreatePage() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#0F172A] text-white">
+    <div className="min-h-screen flex items-center justify-center bg-[#0F172A] text-white p-4">
       <SubscriptionForm />
     </div>
   );
