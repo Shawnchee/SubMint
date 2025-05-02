@@ -7,6 +7,8 @@ import supabase from '@/lib/supabase/client';
 import { clearBurnerWallet, getOrCreateBurnerWallet } from '@/lib/burner-wallet';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from '@/hooks/check-auth';
+import { Connection } from '@solana/web3.js';
+import NFTCard from '@/components/nft-card-owned';
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -16,6 +18,7 @@ export default function ProfilePage() {
   const [walletAddress, setWalletAddress] = useState('');
   const [resetWalletLoading, setResetWalletLoading] = useState(false);
   const { user: authUser, loading: authloading } = useAuth();
+  const [metadataUris, setMetadataUris] = useState<string[]>([]);
 
   useEffect(() => {
     async function fetchUserProfile() {
@@ -47,7 +50,8 @@ export default function ProfilePage() {
         
         // Set user data and NFTs
         setUser(userData);
-        setNfts(userData.nft_address || []);
+        setMetadataUris(userData.metadata_uris || []);
+        setLoading(false)
       } catch (error) {
         console.error('Error fetching profile:', error);
       } finally {
@@ -56,7 +60,7 @@ export default function ProfilePage() {
     }
     
     fetchUserProfile();
-  }, [authUser]);
+  }, [router, authUser]);
 
   const handleResetWallet = async () => {
     try {
@@ -93,7 +97,8 @@ export default function ProfilePage() {
     await supabase.auth.signOut();
     router.push('/authentication');
   };
-
+  console.log("Loading profile:", loading);
+    console.log("Auth loading:", authloading);
   if (authloading || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-900">
@@ -195,133 +200,38 @@ export default function ProfilePage() {
           <h2 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-300 to-cyan-300 mb-6">
             Your Subscription NFTs
           </h2>
-          
-          {nfts.length === 0 ? (
-            <div className="bg-slate-800/40 backdrop-blur-md border border-white/10 rounded-xl p-8 text-center">
-              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-slate-700/70 flex items-center justify-center">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                </svg>
-              </div>
-              <h3 className="text-xl font-medium text-white mb-2">No NFTs Yet</h3>
-              <p className="text-slate-400 mb-6">You haven't created any subscription NFTs yet.</p>
-              <button
-                onClick={() => router.push('/')}
-                className="bg-gradient-to-r from-indigo-600 to-cyan-700 hover:from-indigo-500 hover:to-cyan-600 text-white py-2 px-6 rounded-md transition-all duration-300 shadow-lg"
-              >
-                Create Your First NFT
-              </button>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {nfts.map((nftAddress, index) => (
-                <NFTCard key={index} nftAddress={nftAddress} />
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
+
+          {metadataUris.length === 0 ? (
+   <div className="bg-slate-800/40 backdrop-blur-md border border-white/10 rounded-xl p-8 text-center">
+   <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-slate-700/70 flex items-center justify-center">
+     <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+     </svg>
+   </div>
+   <h3 className="text-xl font-medium text-white mb-2">No NFTs Yet</h3>
+   <p className="text-slate-400 mb-6">You haven't created any subscription NFTs yet.</p>
+   <button
+     onClick={() => router.push('/')}
+     className="bg-gradient-to-r from-indigo-600 to-cyan-700 hover:from-indigo-500 hover:to-cyan-600 text-white py-2 px-6 rounded-md transition-all duration-300 shadow-lg"
+   >
+     Create Your First NFT
+   </button>
+ </div>
+  ) : (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+      {metadataUris.map((uri, index) => (
+        <NFTCard key={index} metadataUri={uri} />
+      ))}
     </div>
-  );
+  )}
+  </div>
+  </div>
+  </div>
+  )
 }
 
-// NFT Card Component
-function NFTCard({ nftAddress }: { nftAddress: string }) {
-  const [nftData, setNftData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    async function fetchNFTData() {
-      try {
-        // In a real app, you would fetch NFT metadata from a blockchain API
-        // For now, we'll simulate this with some default data
-        
-        // Simulate API call delay
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        // Create random data for demo purposes
-        const services = ["Netflix", "Spotify", "Disney+", "Amazon Prime", "Apple Music", "YouTube Premium"];
-        const randomService = services[Math.floor(Math.random() * services.length)];
-        const randomPrice = (Math.random() * 20 + 5).toFixed(2);
-        const randomDuration = Math.floor(Math.random() * 12) + 1;
-        
-        setNftData({
-          name: randomService,
-          price: randomPrice,
-          duration: randomDuration,
-          image: "https://images.pexels.com/photos/218717/pexels-photo-218717.jpeg?auto=compress&cs=tinysrgb&w=600",
-          paymentDate: `${Math.floor(Math.random() * 28) + 1}th of each month`
-        });
-      } catch (error) {
-        console.error('Error fetching NFT data:', error);
-      } finally {
-        setLoading(false);
-      }
-    }
-    
-    fetchNFTData();
-  }, [nftAddress]);
 
-  if (loading) {
-    return (
-      <div className="bg-slate-800/40 backdrop-blur-md border border-white/10 rounded-xl h-96 animate-pulse flex items-center justify-center">
-        <div className="w-10 h-10 rounded-full bg-gradient-to-r from-indigo-500 to-cyan-500"></div>
-      </div>
-    );
-  }
+          
+          
 
-  return (
-    <Card className="w-full bg-slate-900/40 backdrop-blur-md border border-white/10 shadow-xl rounded-xl overflow-hidden h-full transition-all duration-300 hover:transform hover:scale-[1.02] hover:shadow-2xl">
-      <div className="relative h-48 w-full overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-indigo-600/30 to-cyan-600/30 z-10"></div>
-        <Image 
-          src={nftData.image} 
-          alt={nftData.name}
-          fill
-          className="object-cover"
-        />
-      </div>
-      
-      <CardHeader className="relative border-b border-white/10 pb-2">
-        <CardTitle className="text-xl font-bold text-white">{nftData.name}</CardTitle>
-        <CardDescription className="text-slate-300">Subscription NFT</CardDescription>
-        <div className="absolute top-4 right-4 bg-indigo-600/80 text-white text-xs font-bold px-2 py-1 rounded-full">
-          Active
-        </div>
-      </CardHeader>
-      
-      <CardContent className="pt-4 pb-2 space-y-3">
-        <div className="flex justify-between items-center">
-          <span className="text-sm text-slate-400">Price</span>
-          <span className="font-medium text-white">${nftData.price}/month</span>
-        </div>
-        
-        <div className="flex justify-between items-center">
-          <span className="text-sm text-slate-400">Duration</span>
-          <span className="font-medium text-white">{nftData.duration} months</span>
-        </div>
-        
-        <div className="flex justify-between items-center">
-          <span className="text-sm text-slate-400">Payment Date</span>
-          <span className="font-medium text-white">{nftData.paymentDate}</span>
-        </div>
-        
-        <div className="flex justify-between items-center">
-          <span className="text-sm text-slate-400">NFT Address</span>
-          <span className="font-mono text-xs text-indigo-300 truncate max-w-[150px]">{nftAddress}</span>
-        </div>
-      </CardContent>
-      
-      <CardFooter className="pt-2">
-        <a
-          href={`https://explorer.solana.com/address/${nftAddress}?cluster=devnet`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="w-full text-center bg-slate-800/80 hover:bg-slate-700 text-indigo-300 hover:text-indigo-200 py-2 px-4 rounded-md text-sm transition-colors"
-        >
-          View on Solana Explorer
-        </a>
-      </CardFooter>
-    </Card>
-  );
-}
