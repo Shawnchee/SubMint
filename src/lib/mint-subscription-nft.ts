@@ -9,6 +9,7 @@ import {
   publicKey as umiPublicKey
 } from "@metaplex-foundation/umi";
 import { createNft, mplTokenMetadata } from "@metaplex-foundation/mpl-token-metadata";
+import bs58 from 'bs58';
 
 const DEVNET_RPC = clusterApiUrl("devnet");
 
@@ -55,9 +56,36 @@ export async function mintSubscriptionNFT({
     
     console.log("NFT created successfully");
     console.log("Mint address:", nftMint.publicKey);
+
+    let formattedSignature;
+    try {
+      if (Array.isArray(mintTx.signature)) {
+        // Handle array format
+        formattedSignature = bs58.encode(new Uint8Array(mintTx.signature));
+      } else if (mintTx.signature instanceof Uint8Array) {
+        // Handle Uint8Array format
+        formattedSignature = bs58.encode(mintTx.signature);
+      } else if (typeof mintTx.signature === 'object' && mintTx.signature !== null) {
+        // Handle object format (uncommon)
+        console.log("Unusual signature format:", mintTx.signature);
+        
+        // Try to get the bytes if available
+        const sigBytes = (mintTx.signature as { bytes?: Uint8Array }).bytes || mintTx.signature;
+        formattedSignature = bs58.encode(new Uint8Array(sigBytes));
+      } else {
+        // Handle string or other format
+        formattedSignature = (mintTx.signature as any).toString();
+      }
+      
+      console.log("Formatted signature:", formattedSignature);
+    } catch (e) {
+      console.error("Error formatting signature:", e);
+      // Fallback to string representation
+      formattedSignature = String(mintTx.signature);
+    }
     
     return {
-      signature: mintTx.signature,
+      signature: formattedSignature,
       mintAddress: nftMint.publicKey
     };
   } catch (error: any) {
