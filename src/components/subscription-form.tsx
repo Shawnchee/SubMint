@@ -5,6 +5,8 @@ import Image from "next/image";
 import { useWallet } from "./wallet-provider";
 import { mintSubscriptionNFT } from "@/lib/mint-subscription-nft";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import supabase from "@/lib/supabase/client";
+
 
 export default function SubscriptionForm() {
   const wallet = useWallet();
@@ -30,15 +32,89 @@ export default function SubscriptionForm() {
       // Reset any previous errors
       setError("");
       
-      // Instead of using a data URI with embedded metadata, use a direct image URL
-      // This avoids the "URI too long" error
-      const { signature, mintAddress } = await mintSubscriptionNFT({
+      // First, upload the image to Pinata
+      const imageData = new FormData();
+      
+      // For now using a static image, but you could allow image uploads
+      const imageResponse = await fetch(staticImageUri);
+      const imageBlob = await imageResponse.blob();
+      const imageFile = new File([imageBlob], "subscription-image.jpg", { type: "image/jpeg" });
+      imageData.set("file", imageFile);
+      
+      const imageUploadResponse = await fetch("/api/files", {
+        method: "POST",
+        body: imageData,
+      });
+      
+      const imageUri = await imageUploadResponse.json();
+      
+      // Then, create and upload the metadata
+      const metadataResponse = await fetch("/api/metadata-to-pinata", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          title,
+          description: `${title}: ${price}/mo for ${duration}mo`,
+          imageUri,
+          price,
+          duration,
+          recurringDate,
+          proof
+        }),
+      });
+      
+      if (!metadataResponse.ok) {
+        throw new Error("Failed to upload metadata");
+      }
+      
+      const { metadataUri } = await metadataResponse.json();
+      
+      const result = await mintSubscriptionNFT({
         wallet,
         title,
-        // Keep description short to avoid URI length issues
         description: `${title}: ${price}/mo for ${duration}mo`,
-        imageUri: staticImageUri,
+        imageUri: metadataUri, // Use the Pinata metadata URI instead of direct image
       });
+      
+      let signature = result.signature;
+      let mintAddress = result.mintAddress;
+  
+      // Store the mint result in Supabase
+      if (mintAddress) {
+        try {
+          // Get current auth session
+          const { data: { session } } = await supabase.auth.getSession();
+          
+          if (session?.user) {
+            // Get current NFT addresses from user profile
+            const { data: userData } = await supabase
+              .from('user')
+              .select('nft_address , metadata_uris' )
+              .eq('id', session.user.id)
+              .single();
+            
+            // Add the new NFT to the array
+            const updatedNftAddresses = [...(userData?.nft_address || []), mintAddress];
+            const updatedMetadataUris = [...(userData?.metadata_uris || []), metadataUri];
+
+            
+            // Update the user profile
+            await supabase
+              .from('user')
+              .update({ 
+                nft_address: updatedNftAddresses,
+                metadata_uris: updatedMetadataUris,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', session.user.id);
+          }
+        } catch (error) {
+          console.error("Error updating user profile with NFT:", error);
+          // Continue even if this fails
+        }
+      }
 
       setTxSignature(signature);
       setMintAddress(mintAddress);
