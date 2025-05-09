@@ -18,7 +18,7 @@ export default function HomePage() {
     );
   }
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#0F172A] text-white p-4">
+    <div className="min-h-screen flex items-center justify-center bg-[#0F172A] text-white pt-16 p-4">
       <SubscriptionForm />
     </div>
   );
