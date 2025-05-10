@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import Link from 'next/link';
 
 interface NFTMetadata {
   name: string;
@@ -79,7 +80,8 @@ export default function NFTCard({ metadataUri }: { metadataUri: string }) {
 
   // Find the attribute values
   const price = nftData.attributes.find(attr => attr.trait_type === "Price")?.value || "Unknown";
-  const duration = nftData.attributes.find(attr => attr.trait_type === "Duration")?.value || "Unknown";
+  const startDate = nftData.attributes.find(attr => attr.trait_type === "Start Date")?.value || "Unknown";
+  const endDate = nftData.attributes.find(attr => attr.trait_type === "End Date")?.value || "Unknown";
   const paymentDate = nftData.attributes.find(attr => attr.trait_type === "Payment Date")?.value || "Unknown";
   const proof = nftData.attributes.find(attr => attr.trait_type === "Proof")?.value || "N/A";
 
@@ -110,14 +112,19 @@ export default function NFTCard({ metadataUri }: { metadataUri: string }) {
         </div>
         
         <div className="flex justify-between items-center">
-          <span className="text-sm text-slate-400">Duration</span>
-          <span className="font-medium text-white">{duration} months</span>
-        </div>
-        
-        <div className="flex justify-between items-center">
-          <span className="text-sm text-slate-400">Payment Date</span>
-          <span className="font-medium text-white">{paymentDate}</span>
-        </div>
+  <span className="text-sm text-slate-400">Start Date</span>
+  <span className="font-medium text-white">{startDate}</span>
+</div>
+
+<div className="flex justify-between items-center">
+  <span className="text-sm text-slate-400">End Date</span>
+  <span className="font-medium text-white">{endDate}</span>
+</div>
+
+<div className="flex justify-between items-center">
+  <span className="text-sm text-slate-400">Billing Due Date Monthly</span>
+  <span className="font-medium text-white">{paymentDate}</span>
+</div>
         
         <div className="flex justify-between items-center">
           <span className="text-sm text-slate-400">Proof</span>
@@ -126,14 +133,14 @@ export default function NFTCard({ metadataUri }: { metadataUri: string }) {
       </CardContent>
       
       <CardFooter className="pt-2">
-        <a
-          href={nftData.image}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="w-full text-center bg-slate-800/80 hover:bg-slate-700 text-indigo-300 hover:text-indigo-200 py-2 px-4 rounded-md text-sm transition-colors"
-        >
-          View Image
-        </a>
+
+        <Link
+    href={`/profile/${encodeURIComponent(metadataUri)}`}
+    className="w-full text-center bg-indigo-600/70 hover:bg-indigo-600/90 text-white py-2 px-4 rounded-md text-sm transition-colors"
+    >
+    Manage Subscription
+        </Link>
+        
       </CardFooter>
     </Card>
   );
