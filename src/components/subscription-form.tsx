@@ -6,6 +6,7 @@ import { useWallet } from "./wallet-provider";
 import { mintSubscriptionNFT } from "@/lib/mint-subscription-nft";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import supabase from "@/lib/supabase/client";
+import { Button } from "./ui/button";
 
 
 export default function SubscriptionForm() {
@@ -16,6 +17,8 @@ export default function SubscriptionForm() {
   const [duration, setDuration] = useState("");
   const [recurringDate, setRecurringDate] = useState("");
   const [proof, setProof] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [loading, setLoading] = useState(false);
   const [txSignature, setTxSignature] = useState<any>(null);
   const [mintAddress, setMintAddress] = useState("");
@@ -56,11 +59,12 @@ export default function SubscriptionForm() {
         },
         body: JSON.stringify({
           title,
-          description: `${title}: ${price}/mo for ${duration}mo`,
+          description: `${title}: ${price}/mo (${startDate} to ${endDate})`,
           imageUri,
           price,
-          duration,
           recurringDate,
+          startDate,
+          endDate,
           proof
         }),
       });
@@ -74,8 +78,8 @@ export default function SubscriptionForm() {
       const result = await mintSubscriptionNFT({
         wallet,
         title,
-        description: `${title}: ${price}/mo for ${duration}mo`,
-        imageUri: metadataUri, // Use the Pinata metadata URI instead of direct image
+        description: `${title}: ${price}/mo (${startDate} to ${endDate})`,
+        metadataUri: metadataUri, // Use the Pinata metadata URI instead of direct image
       });
       
       let signature = result.signature;
@@ -140,6 +144,7 @@ export default function SubscriptionForm() {
         
         <CardContent className="pt-6">
           <div className="flex flex-row gap-8">
+            {/* TODO: Add a dynamic image upload option */}
             {/* NFT Image Preview */}
             <div className="flex-shrink-0">
               <div className="relative w-40 h-40 rounded-lg overflow-hidden border border-white/20 shadow-lg group transition-all duration-300 hover:scale-105">
@@ -180,34 +185,45 @@ export default function SubscriptionForm() {
             </div>
             
             <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-300">Duration (months)</label>
-              <input
-                value={duration}
-                onChange={(e) => setDuration(e.target.value)}
-                className="w-full p-2 bg-slate-800/50 backdrop-blur-sm rounded-md border border-white/10 focus:border-blue-400 focus:outline-none transition-colors text-white placeholder-slate-400"
-                required
-                placeholder="12"
-              />
-            </div>
+            <label className="text-sm font-medium text-slate-300">Start Date (dd/mm/yyyy)</label>
+            <input
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="w-full p-2 bg-slate-800/50 backdrop-blur-sm rounded-md border border-white/10 focus:border-blue-400 focus:outline-none transition-colors text-white placeholder-slate-400"
+              required
+              placeholder="31/12/2023"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-300">End Date (dd/mm/yyyy)</label>
+            <input
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="w-full p-2 bg-slate-800/50 backdrop-blur-sm rounded-md border border-white/10 focus:border-blue-400 focus:outline-none transition-colors text-white placeholder-slate-400"
+              required
+              placeholder="31/12/2024"
+            />
+          </div>
             
             <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-300">Recurring Payment Date</label>
+              <label className="text-sm font-medium text-slate-300">Payment Due Date (day of month)</label>
               <input
                 value={recurringDate}
                 onChange={(e) => setRecurringDate(e.target.value)}
                 className="w-full p-2 bg-slate-800/50 backdrop-blur-sm rounded-md border border-white/10 focus:border-blue-400 focus:outline-none transition-colors text-white placeholder-slate-400"
                 required
-                placeholder="15th of each month"
+                placeholder="15"
               />
             </div>
             
             <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-300">Proof of Subscription (optional)</label>
+              <label className="text-sm font-medium text-slate-300">Proof of Subscription</label>
               <input
                 value={proof}
                 onChange={(e) => setProof(e.target.value)}
                 className="w-full p-2 bg-slate-800/50 backdrop-blur-sm rounded-md border border-white/10 focus:border-blue-400 focus:outline-none transition-colors text-white placeholder-slate-400"
-                placeholder="Receipt URL or confirmation code"
+                placeholder="Link of Proof (Google Drive, Dropbox, etc.)"
               />
             </div>
 
@@ -261,29 +277,37 @@ export default function SubscriptionForm() {
                 <p className="font-medium">Success! Your subscription NFT has been created.</p>
               </div>
               <p>
-                View Transaction: {" "}
+                View Transaction on BlockChain: {" "}
                 <a
                   href={`https://explorer.solana.com/tx/${txSignature}?cluster=devnet`}
                   target="_blank" 
                   rel="noopener noreferrer"
                   className="text-indigo-300 hover:text-indigo-200 transition-colors underline"
                 >
-                  Solana Explorer
+                  Click Here
                 </a>
               </p>
               {mintAddress && (
                 <p>
-                  View NFT: {" "}
+                  View NFT on BlockChain: {" "}
                   <a
                     href={`https://explorer.solana.com/address/${mintAddress}?cluster=devnet`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-indigo-300 hover:text-indigo-200 transition-colors underline"
                   >
-                    Solana Explorer
+                    Click Here
                   </a>
                 </p>
               )}
+            <Button 
+              variant="secondary"
+              className="mt-4"
+              onClick={() => window.location.href = "/profile"}
+            >
+              View Profile
+            </Button>
+
             </div>
           </CardFooter>
         )}

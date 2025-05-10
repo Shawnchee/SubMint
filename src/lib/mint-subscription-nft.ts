@@ -17,12 +17,12 @@ export async function mintSubscriptionNFT({
   wallet,
   title,
   description,
-  imageUri,
+  metadataUri,
 }: {
   wallet: Keypair;
   title: string;
   description: string;
-  imageUri: string;
+  metadataUri: string;
 }) {
   try {
     // Setup UMI with the correct plugins
@@ -49,7 +49,7 @@ export async function mintSubscriptionNFT({
       mint: nftMint,
       name: title,  
       symbol: "SUB",
-      uri: imageUri, // Just use the image URI directly
+      uri: metadataUri, // Just use the image URI directly
       sellerFeeBasisPoints: percentAmount(0), // 0% royalty
       isMutable: true,
     }).sendAndConfirm(umi);

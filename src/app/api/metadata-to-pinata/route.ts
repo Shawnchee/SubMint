@@ -14,9 +14,11 @@ export async function POST(request: NextRequest) {
       image: data.imageUri,
       attributes: [
         { trait_type: "Price", value: data.price },
-        { trait_type: "Duration", value: data.duration },
         { trait_type: "Payment Date", value: data.recurringDate },
+        { trait_type: "Start Date", value: data.startDate },
+        { trait_type: "End Date", value: data.endDate },
         { trait_type: "Proof", value: data.proof || "N/A" }
+        
       ]
     };
     
