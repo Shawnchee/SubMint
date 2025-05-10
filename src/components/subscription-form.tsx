@@ -249,7 +249,7 @@ export default function SubscriptionForm() {
             <button
               onClick={handleSubmit}
               disabled={loading}
-              className="bg-gradient-to-r from-indigo-600 to-cyan-700 w-full p-3 rounded-md text-white font-medium hover:from-indigo-500 hover:to-cyan-600 transition-all duration-300 disabled:opacity-70 transform hover:-translate-y-1 shadow-lg"
+              className="bg-gradient-to-r from-indigo-600 to-cyan-700 w-full p-3 rounded-md text-white font-medium hover:from-indigo-500 hover:to-cyan-600 transition-all duration-300 disabled:opacity-70 transform hover:-translate-y-1 shadow-lg cursor-pointer"
             >
               {loading ? (
                 <div className="flex items-center justify-center space-x-2">
@@ -301,8 +301,8 @@ export default function SubscriptionForm() {
                 </p>
               )}
             <Button 
-              variant="secondary"
-              className="mt-4"
+              variant="default"
+              className="bg-gradient-to-r from-indigo-600 to-cyan-700 w-full p-3 rounded-md text-white font-medium hover:from-indigo-500 hover:to-cyan-600 transition-all duration-300 disabled:opacity-70 transform hover:-translate-y-1 shadow-lg mt-4 cursor-pointer"
               onClick={() => window.location.href = "/profile"}
             >
               View Profile
