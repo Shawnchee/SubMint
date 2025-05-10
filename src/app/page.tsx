@@ -3,9 +3,18 @@
 
 import SubscriptionForm from "@/components/subscription-form";
 import { useAuth } from "@/hooks/check-auth";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 
 export default function HomePage() {
-  const { loading } = useAuth();
+  const { user, loading } = useAuth();
+  const router = useRouter();
+  useEffect(() => {
+
+  if (!loading && !user) {
+  router.push("/authentication");
+  }
+}, [user, router, loading]);
 
   if (loading) {
     return (
@@ -18,7 +27,7 @@ export default function HomePage() {
     );
   }
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#0F172A] text-white pt-16 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-[#0F172A] text-white p-16">
       <SubscriptionForm />
     </div>
   );
