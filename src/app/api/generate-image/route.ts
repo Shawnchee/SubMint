@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import Replicate from "replicate";
 
 // Set function timeout for Vercel (increase to handle longer generation times)
-export const maxDuration = 90;
+export const maxDuration = 60;
 
 // Fallback image if all else fails
 const FALLBACK_IMAGE_URL = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQ2zbGvCe-Ihgi4DETbEND8RPM0xX40AOI84Q&s";
