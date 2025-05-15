@@ -349,6 +349,47 @@ console.log("Preparing update with array structure:", {
         }
       }
 
+      if (mintAddress && session?.user && sharedUsers.length > 0) {
+  // Get the current month and year for initial payment record
+  const currentDate = new Date();
+  const currentYear = currentDate.getFullYear().toString();
+  const currentMonth = (currentDate.getMonth() + 1).toString().padStart(2, '0');
+  const paymentDate = `${currentYear}-${currentMonth}`;
+  
+  console.log("Creating initial payment records for shared users");
+  
+  for (const user of sharedUserDbRecords) {
+    try {
+      // Create payment record with unpaid status
+      const { data: paymentRecord, error: paymentError } = await supabase
+        .from("payment_records")
+        .insert({
+          shared_user_id: user.id,
+          payment_date: paymentDate,
+          payment_status: false, // Initial status is unpaid
+          payment_amount: typeof price === 'number' ? price : Number(price) || 0,
+          paid_date: null,
+          // Add subscription details for reference
+          subscription_title: title,
+          subscription_image: imageUri,
+          metadata_uri: metadataUri,
+          mint_address: mintAddress,
+          user_name: user.user_name,
+          user_email: user.email || null,
+          user_wallet: user.wallet_address || null
+        });
+      
+      if (paymentError) {
+        console.error("Error creating payment record:", paymentError);
+      } else {
+        console.log("Created payment record for user:", user.user_name);
+      }
+    } catch (recordError) {
+      console.error("Failed to create payment record:", recordError);
+    }
+  }
+}
+
       setTxSignature(signature);
       setMintAddress(mintAddress);
     } catch (error: any) {

@@ -32,6 +32,7 @@ interface PaymentRecord {
   created_at: string
   updated_at: string
   paid_date: string
+  metadata_uri?: string
 }
 
 interface NFTAttribute {
@@ -75,6 +76,11 @@ export default function PaymentTracker() {
   const getMonthName = (monthValue: string) => {
     return months.find((m) => m.value === monthValue)?.name || monthValue
   }
+
+  const getCurrentMetadataUri = () => {
+  const urlPath = window.location.pathname.split('/profile/')[1];
+  return decodeURIComponent(urlPath);
+};
 
   // Add these new state variables near the top of your component
   const [subscription, setSubscription] = useState({
@@ -168,21 +174,70 @@ export default function PaymentTracker() {
           
           // IMPORTANT: Extract and process shared users from metadata
           if (metadata.shared_users && Array.isArray(metadata.shared_users) && metadata.shared_users.length > 0) {
-            console.log("Found shared users in metadata:", metadata.shared_users);
-            
-            // Create formatted shared users from metadata
-            const metadataUsers = metadata.shared_users.map((user: any, index: number) => ({
-              id: `metadata-user-${index}`, // Create temporary IDs for metadata users
-              user_name: user.name,
-              email: "",
-              wallet_address: user.wallet_address || "None",
-              created_at: new Date().toISOString(),
-              from_metadata: true // Flag to identify users from metadata
-            }));
-            
-            setSharedUsers(metadataUsers);
-
-          }
+  console.log("Found shared users in metadata:", metadata.shared_users);
+  
+  // Create or update users from metadata in the database
+  const dbPromises = metadata.shared_users.map(async (user: any) => {
+    // First check if user already exists by name
+    const { data: existingUser, error: checkError } = await supabase
+      .from("payment_users")
+      .select("*")
+      .eq("user_name", user.name)
+      .maybeSingle();
+      
+    if (checkError) {
+      console.error("Error checking for existing user:", checkError);
+      return null;
+    }
+    
+    if (existingUser) {
+      // User exists, update wallet if needed
+      if (user.wallet_address && user.wallet_address !== existingUser.wallet_address) {
+        const { data: updatedUser, error: updateError } = await supabase
+          .from("payment_users")
+          .update({ wallet_address: user.wallet_address })
+          .eq("id", existingUser.id)
+          .select();
+          
+        if (updateError) {
+          console.error("Error updating user wallet:", updateError);
+          return existingUser;
+        }
+        
+        return updatedUser?.[0] || existingUser;
+      }
+      
+      return existingUser;
+    } else {
+      // Create new user
+      const { data: newUser, error: insertError } = await supabase
+        .from("payment_users")
+        .insert({
+          user_name: user.name,
+          email: "",
+          wallet_address: user.wallet_address || null,
+          from_metadata: true // Keep this flag to show the source
+        })
+        .select();
+        
+      if (insertError) {
+        console.error("Error creating user from metadata:", insertError);
+        return null;
+      }
+      
+      return newUser?.[0] || null;
+    }
+  });
+  
+  try {
+    // Wait for all database operations to complete
+    const dbUsers = await Promise.all(dbPromises);
+    // Filter out nulls and set as shared users
+    setSharedUsers(dbUsers.filter(Boolean));
+  } catch (dbError) {
+    console.error("Error processing metadata users:", dbError);
+  }
+}
           
         } catch (metadataError) {
           console.error('Error fetching NFT metadata:', metadataError);
@@ -295,86 +350,86 @@ export default function PaymentTracker() {
   }
 
   // Update payment status
-  const handleUpdatePayment = async (userId: string, status: boolean) => {
-    // Create a payment date string in YYYY-MM format
-    const paymentDate = `${selectedYear}-${selectedMonth}`
+  // Simplified payment update function
+const handleUpdatePayment = async (userId: string, status: boolean) => {
+  // Create a payment date string in YYYY-MM format
+  const paymentDate = `${selectedYear}-${selectedMonth}`;
+  const currentDate = new Date().toISOString();
 
-    const currentDate = new Date().toISOString();
-
+  try {
     // Check if payment record already exists
-    const existingRecord = paymentRecords.find((p) => p.shared_user_id === userId && p.payment_date === paymentDate)
+    const existingRecord = paymentRecords.find(
+      (p) => p.shared_user_id === userId && p.payment_date === paymentDate
+    );
 
-    try {
-      if (existingRecord) {
-        // Update existing record
-        const { data, error } = await supabase
-          .from("payment_records")
-          .update({
-            payment_status: status,
-            payment_amount: typeof subscription.paymentAmount === 'number' ? subscription.paymentAmount : Number(subscription.paymentAmount) || 0,
-            updated_at: currentDate,
-            paid_date: status ? currentDate : null,
-          })
-          .eq("id", existingRecord.id)
-          .select()
+    if (existingRecord) {
+      console.log("Updating payment status in Supabase:", existingRecord.id);
+      
+      // Update the record
+      const { data, error } = await supabase
+        .from("payment_records")
+        .update({ 
+          payment_status: status,
+          paid_date: status ? currentDate : null,
+          updated_at: currentDate,
+          metadata_uri: decodeURIComponent(window.location.pathname.split('/profile/')[1])
 
-        if (error) throw error
+        })
+        .eq("id", existingRecord.id)
+        .select();
 
-        // Update local state
-        if (data) {
-          setPaymentRecords(paymentRecords.map((p) => (p.id === existingRecord.id ? data[0] : p)))
-        }
-      } else {
-        // For metadata users, we need a special handling since they don't have DB records
-        const isMetadataUser = userId.startsWith('metadata-user-');
-        
-        if (isMetadataUser) {
-          // For metadata users, just create a client-side record temporarily
-          const tempRecord = {
-            id: `temp-payment-${Date.now()}`,
-            shared_user_id: userId,
-            payment_date: paymentDate,
-            payment_status: status,
-            payment_amount: typeof subscription.paymentAmount === 'number' ? subscription.paymentAmount : Number(subscription.paymentAmount) || 0,
-            created_at: currentDate,
-            updated_at: currentDate,
-            paid_date: status ? currentDate : "", // Always a string
-          };
-          
-          setPaymentRecords([...paymentRecords, tempRecord]);
-          return;
-        }
-        
-        // Create new record in database for regular users
-        const { data, error } = await supabase
-          .from("payment_records")
-          .insert({
-            shared_user_id: userId,
-            payment_date: paymentDate,
-            payment_status: status,
-            payment_amount: typeof subscription.paymentAmount === 'number' ? subscription.paymentAmount : Number(subscription.paymentAmount) || 0,
-            paid_date: status ? currentDate : null,
-          })
-          .select()
-
-        if (error) throw error
-
-        // Update local state
-        if (data) {
-          setPaymentRecords([...paymentRecords, data[0]])
-        }
+      if (error) {
+        console.error("Supabase update error:", error);
+        throw error;
       }
-    } catch (error) {
-      console.error("Error updating payment:", error)
-    }
-  }
 
-  // Get payment status for a user in the selected year/month
-  const getPaymentStatus = (userId: string) => {
-    const paymentDate = `${selectedYear}-${selectedMonth}`
-    const record = paymentRecords.find((p) => p.shared_user_id === userId && p.payment_date === paymentDate)
-    return record?.payment_status || false
+      // Update local state
+      if (data && data.length > 0) {
+        setPaymentRecords(paymentRecords.map((p) => 
+          p.id === existingRecord.id ? data[0] : p
+        ));
+      } else {
+        setPaymentRecords(paymentRecords.map((p) => 
+          p.id === existingRecord.id ? { ...p, payment_status: status, paid_date: status ? currentDate : "" } : p
+        ));
+      }
+    } else {
+      // Create new record in database
+      const { data, error } = await supabase
+        .from("payment_records")
+        .insert({
+          shared_user_id: userId, // Now this is always a valid UUID
+          payment_date: paymentDate,
+          payment_status: status,
+          payment_amount: typeof subscription.paymentAmount === 'number' ? 
+            subscription.paymentAmount : Number(subscription.paymentAmount) || 0,
+          paid_date: status ? currentDate : null,
+          updated_at: currentDate,
+          metadata_uri: window.location.pathname.split('/profile/')[1]
+        })
+        .select();
+
+      if (error) {
+        console.error("Supabase insert error:", error);
+        throw error;
+      }
+
+      // Update local state
+      if (data && data.length > 0) {
+        setPaymentRecords([...paymentRecords, data[0]]);
+      }
+    }
+  } catch (error) {
+    console.error("Error updating payment:", error);
+    alert(`Failed to update payment: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
+};
+
+  const getPaymentStatus = (userId: string) => {
+  const paymentDate = `${selectedYear}-${selectedMonth}`;
+  const record = paymentRecords.find((p) => p.shared_user_id === userId && p.payment_date === paymentDate);
+  return record?.payment_status || false;
+}
 
   // Get payment amount for a user in the selected year/month
   const getPaymentAmount = (userId: string) => {
@@ -393,15 +448,25 @@ export default function PaymentTracker() {
   }
 
   // Get all payment records for a specific year
-  const getPaymentsByYear = (year: string) => {
-    return paymentRecords.filter((record) => record.payment_date.startsWith(year))
-  }
+const getPaymentsByYear = (year: string) => {
+  const currentUri = getCurrentMetadataUri();
+  return paymentRecords.filter((record) => 
+    record.payment_date.startsWith(year) && 
+    record.metadata_uri === currentUri &&
+    record.payment_status === true
+  );
+};
 
-  // Get all payment records for a specific year and month
-  const getPaymentsByYearAndMonth = (year: string, month: string) => {
-    const paymentDate = `${year}-${month}`
-    return paymentRecords.filter((record) => record.payment_date === paymentDate)
-  }
+// Update getPaymentsByYearAndMonth to filter by metadata URI and payment status
+const getPaymentsByYearAndMonth = (year: string, month: string) => {
+  const paymentDate = `${year}-${month}`;
+  const currentUri = getCurrentMetadataUri();
+  return paymentRecords.filter((record) => 
+    record.payment_date === paymentDate && 
+    record.metadata_uri === currentUri &&
+    record.payment_status === true
+  );
+};
 
   const getPaymentPaidDate = (userId: string) => {
     const paymentDate = `${selectedYear}-${selectedMonth}`
