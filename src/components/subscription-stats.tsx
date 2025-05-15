@@ -11,11 +11,25 @@ interface RecommendationCategory {
   title: string;
   score: number;
   recommendations: string[];
+
+}
+
+interface WebAlternative {
+  name: string;
+  savings: string;
+  url: string;
+  description: string;
+}
+
+interface SubscriptionAlternatives {
+  for: string;
+  alternatives: WebAlternative[];
 }
 
 interface HealthCheckResponse {
   overallScore: number;
   categories: RecommendationCategory[];
+  webAlternatives?: SubscriptionAlternatives[];
   stats: {
     totalMonthly: number;
     totalYearly: number;
@@ -202,7 +216,98 @@ export default function SubscriptionStats({ userId, subscriptions = [] }: Subscr
                 />
               </div>
 
-              {/* Categories */}
+    {healthData.webAlternatives && healthData.webAlternatives.length > 0 && (
+      <div className="p-5 bg-gradient-to-br from-indigo-900/60 to-cyan-900/60 rounded-md border border-indigo-400/40 shadow-lg">
+        <h3 className="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-300 to-cyan-300 mb-4">
+          Web-Based Savings Alternatives
+        </h3>
+        
+        <div className="space-y-4">
+          {healthData.webAlternatives.map((item, idx) => (
+            <div key={idx} className="border-b border-indigo-500/20 pb-4 last:border-0 last:pb-0">
+              <h4 className="text-white font-medium mb-2">Alternatives for <span className="text-indigo-300">{item.for}</span></h4>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {item.alternatives.map((alt, altIdx) => (
+                  <div key={altIdx} className="bg-slate-800/50 rounded-md p-3 border border-white/5 hover:border-indigo-400/30 transition-all">
+                    <div className="flex justify-between items-start mb-1">
+                      <h5 className="font-medium text-cyan-300">{alt.name}</h5>
+                      <span className="text-xs bg-green-900/60 text-green-300 px-2 py-0.5 rounded-full">
+                        {alt.savings}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-300 mb-2">{alt.description}</p>
+                            <a 
+                            href={alt.url.startsWith('http') ? alt.url : `https://${alt.url}`} 
+                            target="_blank" 
+                            rel="noopener noreferrer" 
+                            className="text-xs text-indigo-400 font-mono hover:underline"
+                            key={`alt-link-${altIdx}`}
+
+                            >
+                            {alt.url}
+                            </a>                 
+                             </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
+    
+    <div className="p-5 bg-gradient-to-br from-indigo-900/60 to-cyan-900/60 rounded-md border border-indigo-400/40 shadow-lg">
+      <h3 className="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-300 to-cyan-300 mb-4">
+        Smart Savings Recommendations
+      </h3>
+      
+      <ul className="space-y-3">
+        <li className="flex items-start gap-3 text-slate-200">
+          <div className="bg-indigo-600/30 p-1 rounded-full mt-0.5">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-indigo-300" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clipRule="evenodd" />
+            </svg>
+          </div>
+          <span>
+            <span className="font-medium text-indigo-300">Search for cheaper alternatives</span> - Compare pricing across different providers for similar services
+          </span>
+        </li>
+        
+        <li className="flex items-start gap-3 text-slate-200">
+          <div className="bg-cyan-600/30 p-1 rounded-full mt-0.5">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-cyan-300" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+            </svg>
+          </div>
+          <span>
+            <span className="font-medium text-cyan-300">Consider open source alternatives</span> - Many paid services have free open source equivalents that may meet your needs
+          </span>
+        </li>
+        
+        <li className="flex items-start gap-3 text-slate-200">
+          <div className="bg-indigo-600/30 p-1 rounded-full mt-0.5">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-indigo-300" viewBox="0 0 20 20" fill="currentColor">
+              <path d="M5 4a1 1 0 00-2 0v7.268a2 2 0 000 3.464V16a1 1 0 102 0v-1.268a2 2 0 000-3.464V4zM11 4a1 1 0 10-2 0v1.268a2 2 0 000 3.464V16a1 1 0 102 0V8.732a2 2 0 000-3.464V4zM16 3a1 1 0 011 1v7.268a2 2 0 010 3.464V16a1 1 0 11-2 0v-1.268a2 2 0 010-3.464V4a1 1 0 011-1z" />
+            </svg>
+          </div>
+          <span>
+            <span className="font-medium text-indigo-300">Look for bundles or family plans</span> - Many services offer discounts for multiple subscriptions or family accounts
+          </span>
+        </li>
+        
+        <li className="flex items-start gap-3 text-slate-200">
+          <div className="bg-cyan-600/30 p-1 rounded-full mt-0.5">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-cyan-300" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M18 5v8a2 2 0 01-2 2h-5l-5 4v-4H4a2 2 0 01-2-2V5a2 2 0 012-2h12a2 2 0 012 2zM7 8H5v2h2V8zm2 0h2v2H9V8zm6 0h-2v2h2V8z" clipRule="evenodd" />
+            </svg>
+          </div>
+          <span>
+            <span className="font-medium text-cyan-300">Ask for discounts</span> - Contact customer service about loyalty discounts, annual payment options, or promotional offers
+          </span>
+        </li>
+      </ul>
+    </div>
+
               {healthData.categories && healthData.categories.map((category, index) => (
                 <div key={index} className="p-5 bg-slate-700/50 rounded-md border border-indigo-500/30">
                   <div className="flex justify-between items-center mb-3">
