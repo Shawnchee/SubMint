@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import Replicate from "replicate";
 
-// Set function timeout for Vercel
+// Set function timeout for Vercel (maximum allowed on hobby plan)
 export const maxDuration = 60;
 
 // Fallback image if all else fails
@@ -18,9 +18,6 @@ export async function POST(request: Request) {
         imageUrl: FALLBACK_IMAGE_URL 
       }, { status: 500 });
     }
-    
-    // Log first few characters of token to verify it's loading correctly
-    console.log("API token starts with:", apiToken.substring(0, 4) + "...");
     
     // Initialize Replicate with the token
     const replicate = new Replicate({
@@ -40,134 +37,65 @@ export async function POST(request: Request) {
     
     console.log("Running Replicate image generation with prompt:", prompt);
     
-    // First attempt - same model with specific version hash for better reliability
-    try {
-      const output = await replicate.run(
-        "black-forest-labs/flux-schnell:56a8e4353ad4ac6fdddf5f14b33ca2d02b91a8c0a752959f63d370789d1cf0a7", 
-        {
-          input: {
-            prompt: prompt,
-            num_inference_steps: 25
-          },
-        }
-      );
-
-      console.log("First attempt output:", JSON.stringify(output));
-      
-      // Check if we got a valid URL
-      if (Array.isArray(output) && output.length > 0 && typeof output[0] === 'string') {
-        return NextResponse.json({
-          imageUrl: output[0],
-          success: true
-        });
+    // Create a promise with timeout to avoid Vercel timeout issues
+    const outputPromise = replicate.run(
+      // Use the model without version hash to reduce loading time
+      "black-forest-labs/flux-schnell", 
+      {
+        input: {
+          prompt: prompt,
+          // Smaller steps means faster generation
+          num_inference_steps: 20,
+        },
       }
-    } catch (firstAttemptError) {
-      console.error("First attempt failed:", firstAttemptError);
-    }
+    );
     
-    // Second attempt - same model without version hash (as originally requested)
-    try {
-      console.log("Trying second attempt with original model format");
-      const output = await replicate.run(
-        "black-forest-labs/flux-schnell", 
-        {
-          input: {
-            prompt: prompt,
-          },
-        }
-      );
-
-      console.log("Second attempt output:", JSON.stringify(output));
-      
-      // Handle different output formats with improved extraction
-      let imageUrl;
-      
+    // Add a timeout to ensure we don't hit Vercel's 60-second limit
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error("Image generation timed out")), 45000); // 45 seconds
+    });
+    
+    // Race the model generation against our timeout
+    const output = await Promise.race([outputPromise, timeoutPromise])
+      .catch(error => {
+        console.error("Model execution error:", error);
+        return null;
+      });
+    
+    console.log("Model output:", JSON.stringify(output));
+    
+    // Extract image URL if possible
+    let imageUrl;
+    
+    if (output) {
       if (Array.isArray(output) && output.length > 0) {
-        // Use the first URL if it's an array
         imageUrl = output[0];
-        console.log("Found image URL in array:", imageUrl);
       } else if (typeof output === 'string') {
-        // Use directly if it's a string URL
         imageUrl = output;
-        console.log("Found direct string URL:", imageUrl);
       } else if (output && typeof output === 'object') {
-        // Try to extract URL from object with more thorough checks
-        console.log("Searching for URL in object properties");
-        
-        if ('output' in output) {
-          if (Array.isArray(output.output) && output.output.length > 0) {
-            imageUrl = output.output[0];
-            console.log("Found URL in output array:", imageUrl);
-          } else if (typeof output.output === 'string') {
-            imageUrl = output.output;
-            console.log("Found URL in output string:", imageUrl);
-          }
-        }
-        
-        if (!imageUrl && 'image' in output) {
-          imageUrl = output.image;
-          console.log("Found URL in image property:", imageUrl);
-        }
-        
-        if (!imageUrl && 'url' in output) {
-          imageUrl = output.url;
-          console.log("Found URL in url property:", imageUrl);
-        }
-        
-        if (!imageUrl && 'images' in output && Array.isArray(output.images) && output.images.length > 0) {
-          imageUrl = output.images[0];
-          console.log("Found URL in images array:", imageUrl);
-        }
+        // Try common output formats
+        if ('output' in output) imageUrl = Array.isArray(output.output) ? output.output[0] : output.output;
+        if (!imageUrl && 'image' in output) imageUrl = output.image;
+        if (!imageUrl && 'url' in output) imageUrl = output.url;
+        if (!imageUrl && 'images' in output && Array.isArray(output.images)) imageUrl = output.images[0];
       }
-      
-      if (imageUrl && typeof imageUrl === 'string' && imageUrl.trim() !== '') {
-        console.log("Successfully found image URL in second attempt:", imageUrl);
-        return NextResponse.json({
-          imageUrl: imageUrl,
-          success: true
-        });
-      }
-    } catch (secondAttemptError) {
-      console.error("Second attempt failed:", secondAttemptError);
-    }
-
-    // If all attempts fail, try a different model as last resort
-    try {
-      console.log("Trying fallback model as last resort");
-      const output = await replicate.run(
-        "stability-ai/stable-diffusion:27b93a2413e7f36cd83da926f3656280b2931564ff050bf9575f1fdf9bcd7478", 
-        {
-          input: {
-            prompt: prompt,
-            width: 512,
-            height: 512,
-            num_outputs: 1
-          }
-        }
-      );
-      
-      console.log("Fallback model output:", JSON.stringify(output));
-      
-      if (Array.isArray(output) && output.length > 0 && typeof output[0] === 'string') {
-        return NextResponse.json({
-          imageUrl: output[0],
-          success: true,
-          model: "fallback"
-        });
-      }
-    } catch (fallbackError) {
-      console.error("Fallback model attempt failed:", fallbackError);
     }
     
-    // If we reach here, all attempts failed
-    console.log("All image generation attempts failed, using default fallback image");
+    if (imageUrl && typeof imageUrl === 'string' && imageUrl.trim() !== '') {
+      return NextResponse.json({
+        imageUrl: imageUrl,
+        success: true
+      });
+    }
+    
+    // If we couldn't get a valid URL, return the fallback
     return NextResponse.json({
       imageUrl: FALLBACK_IMAGE_URL,
       fallback: true,
-      error: "All generation attempts failed"
+      error: "Could not generate a valid image"
     });
   } catch (error: any) {
-    console.error("Critical error in image generation:", error);
+    console.error("Error in image generation:", error);
     return NextResponse.json({
       imageUrl: FALLBACK_IMAGE_URL,
       fallback: true,
