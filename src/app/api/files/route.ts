@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
     // Convert CID to a gateway URL
     const url = await pinata.gateways.public.convert(cid);
     
-    return NextResponse.json(url, { status: 200 });
+    return NextResponse.json({ fileUrl: url }, { status: 200 });
   } catch (e) {
     console.error("Error uploading file to Pinata:", e);
     
