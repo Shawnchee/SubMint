@@ -7,6 +7,11 @@ import { mintSubscriptionNFT } from "@/lib/mint-subscription-nft";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import supabase from "@/lib/supabase/client";
 import { Button } from "./ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { format } from "date-fns";
+import { CalendarIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 
 export default function SubscriptionForm() {
@@ -16,8 +21,8 @@ export default function SubscriptionForm() {
   const [price, setPrice] = useState("");
   const [recurringDate, setRecurringDate] = useState("");
   const [proof, setProof] = useState("");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
+  const [startDate, setStartDate] = useState<Date | undefined>(undefined);
+  const [endDate, setEndDate] = useState<Date | undefined>(undefined);
   const [loading, setLoading] = useState(false);
   const [txSignature, setTxSignature] = useState<any>(null);
   const [mintAddress, setMintAddress] = useState("");
@@ -29,6 +34,11 @@ export default function SubscriptionForm() {
   const [uploadingImage, setUploadingImage] = useState(false);
 
   
+const formatDateString = (date: Date | undefined) => {
+    if (!date) return "";
+    return format(date, "dd/MM/yyyy");
+  };
+
 const handleGenerateImage = async () => {
     if (!imagePrompt.trim()) {
       setImageError("Please enter a description for the image");
@@ -75,9 +85,22 @@ const handleSubmit = async (e: any) => {
     setLoading(true);
     setError("");
 
+    if (!startDate || !endDate) {
+      setError("Start and end dates are required");
+      setLoading(false);
+      return;
+    }
+
+    if (endDate < startDate) {
+      setError("End date cannot be before start date");
+      setLoading(false);
+      return;
+    }
+
     try {
-      // First fetch the image as a blob
-      setUploadingImage(true);
+      // Use formatted dates for API calls
+      const formattedStartDate = formatDateString(startDate);
+      const formattedEndDate = formatDateString(endDate);
       
       let imageBlob;
       try {
@@ -129,12 +152,11 @@ const handleSubmit = async (e: any) => {
         },
         body: JSON.stringify({
           title,
-          description: `${title}: ${price}/mo (${startDate} to ${endDate})`,
+          description: `${title}: ${price}/mo (${formattedStartDate} to ${formattedEndDate})`,
           imageUri,
           price,
-          recurringDate,
-          startDate,
-          endDate,
+          startDate: formattedStartDate,
+          endDate: formattedEndDate,
           proof
         }),
       });
@@ -149,7 +171,7 @@ const handleSubmit = async (e: any) => {
       const result = await mintSubscriptionNFT({
         wallet,
         title,
-        description: `${title}: ${price}/mo (${startDate} to ${endDate})`,
+        description: `${title}: ${price}/mo (${formattedStartDate} to ${formattedEndDate})`,
         metadataUri: metadataUri,
       });
       
@@ -286,26 +308,60 @@ const handleSubmit = async (e: any) => {
             </div>
             
             <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-300">Start Date (dd/mm/yyyy)</label>
-            <input
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="w-full p-2 bg-slate-800/50 backdrop-blur-sm rounded-md border border-white/10 focus:border-blue-400 focus:outline-none transition-colors text-white placeholder-slate-400"
-              required
-              placeholder="31/12/2023"
-            />
-          </div>
+              <label className="text-sm font-medium text-slate-300">Start Date</label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-full justify-start text-left font-normal bg-slate-800/50 backdrop-blur-sm border-white/10 hover:bg-slate-700/50 hover:text-white focus:border-blue-400",
+                      !startDate && "text-slate-400"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {startDate ? format(startDate, "PPP") : <span>Pick start date</span>}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0 bg-slate-800 border border-slate-700" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={startDate}
+                    onSelect={setStartDate}
+                    initialFocus
+                    className="bg-slate-800 text-white"
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-300">End Date (dd/mm/yyyy)</label>
-            <input
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              className="w-full p-2 bg-slate-800/50 backdrop-blur-sm rounded-md border border-white/10 focus:border-blue-400 focus:outline-none transition-colors text-white placeholder-slate-400"
-              required
-              placeholder="31/12/2024"
-            />
-          </div>
+            {/* Replace the end date text input with date picker */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-slate-300">End Date</label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-full justify-start text-left font-normal bg-slate-800/50 backdrop-blur-sm border-white/10 hover:bg-slate-700/50 hover:text-white focus:border-blue-400",
+                      !endDate && "text-slate-400"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {endDate ? format(endDate, "PPP") : <span>Pick end date</span>}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0 bg-slate-800 border border-slate-700" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={endDate}
+                    onSelect={setEndDate}
+                    initialFocus
+                    fromDate={startDate} // Prevent selecting dates before start date
+                    className="bg-slate-800 text-white"
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
             
             <div className="space-y-2">
               <label className="text-sm font-medium text-slate-300">Payment Due Date (day of month)</label>
