@@ -7,6 +7,9 @@ export async function POST(request: NextRequest) {
     const data = await request.json();
     
     
+    // Extract shared_users from data, defaulting to an empty array if not present
+    const shared_users = data.shared_users || [];
+
     // Create a proper NFT metadata object following Metaplex standard
     const nftMetadata = {
       name: data.title,
@@ -17,9 +20,12 @@ export async function POST(request: NextRequest) {
         { trait_type: "Payment Date", value: data.recurringDate },
         { trait_type: "Start Date", value: data.startDate },
         { trait_type: "End Date", value: data.endDate },
-        { trait_type: "Proof", value: data.proof || "N/A" }
-        
-      ]
+        { trait_type: "Proof", value: data.proof || "N/A" },
+        ...(shared_users && shared_users.length > 0 
+          ? [{ trait_type: "Shared With", value: shared_users.map((u: any) => u.name).join(", ") }] 
+          : [])
+      ],
+      shared_users: shared_users || []
     };
     
     // Convert metadata to JSON and create a Blob/File
