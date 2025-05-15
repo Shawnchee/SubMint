@@ -176,6 +176,9 @@ const handleSubmit = async (e: any) => {
       
       const imageUploadResponse = await fetch("/api/files", {
         method: "POST",
+        headers: {
+            'x-api-key': process.env.NEXT_PUBLIC_API_KEY ?? "" 
+          },
         body: imageData,
       });
       
@@ -224,11 +227,12 @@ const handleSubmit = async (e: any) => {
       }
       
       // Then create and upload the metadata
-      const metadataResponse = await fetch("/api/metadata-to-pinata", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        const metadataResponse = await fetch("/api/metadata-to-pinata", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-api-key": process.env.NEXT_PUBLIC_API_KEY ?? "" // Add this line
+          },
         body: JSON.stringify({
           title,
           description: `${title}: ${price}/mo (${formattedStartDate} to ${formattedEndDate})`,
