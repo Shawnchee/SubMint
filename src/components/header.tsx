@@ -32,7 +32,7 @@ export default function Header() {
               <div className="flex-shrink-0">
                 <Link href="/" className="flex items-center">
                   <img 
-                    src="/logoSubmint.svg" 
+                    src="/logoSubMint.svg" 
                     alt="SubMint Logo" 
                     className="h-24 w-24"
                   />
