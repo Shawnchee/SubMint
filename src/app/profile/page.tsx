@@ -9,6 +9,24 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { useAuth } from '@/hooks/check-auth';
 import { Connection } from '@solana/web3.js';
 import NFTCard from '@/components/nft-card-owned';
+import SubscriptionStats from '@/components/subscription-stats';
+
+interface NFTMetadata {
+  name: string;
+  description: string;
+  image: string;
+  attributes: {
+    trait_type: string;
+    value: string;
+  }[];
+}
+interface Subscription {
+  name: string;
+  price: number;
+  billing_cycle: string;
+  category?: string;
+}
+
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -19,6 +37,9 @@ export default function ProfilePage() {
   const [resetWalletLoading, setResetWalletLoading] = useState(false);
   const { user: authUser, loading: authloading } = useAuth();
   const [metadataUris, setMetadataUris] = useState<string[]>([]);
+  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
+  const [subscriptionsLoading, setSubscriptionsLoading] = useState(false);
+
 
   useEffect(() => {
     async function fetchUserProfile() {
@@ -61,6 +82,48 @@ export default function ProfilePage() {
     
     fetchUserProfile();
   }, [router, authUser]);
+
+    // Process metadata URIs to extract subscription data for analytics
+  useEffect(() => {
+    async function processSubscriptionData() {
+      if (metadataUris.length === 0) return;
+      
+      try {
+        setSubscriptionsLoading(true);
+        const subscriptionData: Subscription[] = [];
+        
+        for (const uri of metadataUris) {
+          try {
+            const response = await fetch(uri);
+            const metadata: NFTMetadata = await response.json();
+            
+            // Extract subscription details from metadata
+            const price = metadata.attributes.find(attr => attr.trait_type === "Price")?.value || "0";
+            const billingCycle = metadata.attributes.find(attr => attr.trait_type === "Billing Cycle")?.value || "Monthly";
+            const category = metadata.attributes.find(attr => attr.trait_type === "Category")?.value;
+            
+            subscriptionData.push({
+              name: metadata.name,
+              price: Number(price),
+              billing_cycle: billingCycle.toLowerCase(),
+              category: category
+            });
+          } catch (error) {
+            console.error('Error processing metadata URI:', uri, error);
+            // Continue processing other URIs
+          }
+        }
+        
+        setSubscriptions(subscriptionData);
+      } catch (error) {
+        console.error('Error processing subscription data:', error);
+      } finally {
+        setSubscriptionsLoading(false);
+      }
+    }
+    
+    processSubscriptionData();
+  }, [metadataUris]);
 
   const handleResetWallet = async () => {
     try {
@@ -123,12 +186,12 @@ export default function ProfilePage() {
                 {/* Profile Picture */}
                 <div className="relative w-32 h-32 rounded-full overflow-hidden border-2 border-white/20 shadow-lg group">
                   <div className="absolute inset-0 bg-gradient-to-br from-indigo-600/30 to-cyan-600/30 group-hover:opacity-70 transition-opacity"></div>
-                  {/* <Image 
-                    src={user?.avatar_url || 'https://api.dicebear.com/7.x/initials/svg?seed=' + encodeURIComponent(user?.name || 'User')}
-                    alt="Profile"
+                  <Image 
+                    src="/pfp.jpg"
+                    alt="Profile Picture"
                     fill
                     className="object-cover"
-                  /> */}
+                  />
                 </div>
                 
                 {/* User Info */}
@@ -223,8 +286,12 @@ export default function ProfilePage() {
         <NFTCard key={index} metadataUri={uri} />
       ))}
     </div>
+    
   )}
   </div>
+  
+        {/* Subscription Analytics Section */}
+        <div className="mt-12">{user && <SubscriptionStats userId={user.id} subscriptions={subscriptions} />}</div>
   </div>
   </div>
   )
