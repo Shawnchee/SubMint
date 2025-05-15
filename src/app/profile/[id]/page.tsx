@@ -524,7 +524,7 @@ export default function PaymentTracker() {
         </div>
 
         {/* Period Selection and Add User Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
+        <div className="grid grid-cols-1 gap-8 mb-8">
           <Card className="lg:col-span-1 bg-slate-800/50 backdrop-blur-md border border-white/10 shadow-xl rounded-xl">
             <CardHeader>
               <CardTitle className="text-indigo-300">Period Selection</CardTitle>
@@ -533,9 +533,9 @@ export default function PaymentTracker() {
             <CardContent>
               <div className="space-y-4 text-white">
                 <div>
-                  <Label className="mb-2" htmlFor="yearSelect">Year</Label>
+                  <Label className="mb-2 " htmlFor="yearSelect">Year</Label>
                   <Select value={selectedYear} onValueChange={setSelectedYear}>
-                    <SelectTrigger id="yearSelect">
+                    <SelectTrigger id="yearSelect" className="w-lg">
                       <SelectValue placeholder="Select Year" />
                     </SelectTrigger>
                     <SelectContent>
@@ -549,9 +549,9 @@ export default function PaymentTracker() {
                 </div>
 
                 <div>
-                  <Label className="mb-2" htmlFor="monthSelect">Month</Label>
+                  <Label className="mb-2 w-full" htmlFor="monthSelect">Month</Label>
                   <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-                    <SelectTrigger id="monthSelect">
+                    <SelectTrigger id="monthSelect" className="w-lg">
                       <SelectValue placeholder="Select Month" />
                     </SelectTrigger>
                     <SelectContent>
@@ -576,47 +576,7 @@ export default function PaymentTracker() {
             </CardContent>
           </Card>
 
-          <Card className="lg:col-span-2 bg-slate-800/50 backdrop-blur-md border border-white/10 shadow-xl rounded-xl">
-            <CardHeader>
-              <CardTitle className="text-indigo-300">Add New User</CardTitle>
-              <CardDescription className="text-slate-400">Add users to track their payments</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4 text-white">
-                <div className="col-span-1">
-                  <Label htmlFor="userName" className="mb-2">Name</Label>
-                  <Input
-                    id="userName"
-                    placeholder="User name"
-                    value={newUserName}
-                    onChange={(e) => setNewUserName(e.target.value)}
-                  />
-                </div>
-                <div className="col-span-1">
-                  <Label htmlFor="userEmail" className="mb-2">Email (optional)</Label>
-                  <Input
-                    id="userEmail"
-                    placeholder="Email address"
-                    value={newUserEmail}
-                    onChange={(e) => setNewUserEmail(e.target.value)}
-                  />
-                </div>
-                <div className="col-span-1">
-                  <Label htmlFor="userWallet" className="mb-2">Wallet (optional)</Label>
-                  <Input
-                    id="userWallet"
-                    placeholder="Wallet address"
-                    value={newUserWallet}
-                    onChange={(e) => setNewUserWallet(e.target.value)}
-                  />
-                </div>
-              </div>
-              <Button onClick={handleAddUser} className="bg-gradient-to-r from-indigo-600 to-cyan-700 w-full p-3 rounded-md text-white font-medium hover:from-indigo-500 hover:to-cyan-600 transition-all duration-300 disabled:opacity-70 transform hover:-translate-y-1 shadow-lg cursor-pointer">
-                <PlusCircle className="h-4 w-4 mr-2" />
-                Add User
-              </Button>
-            </CardContent>
-          </Card>
+        
         </div>
 
         {/* Tabs Section */}
