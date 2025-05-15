@@ -27,6 +27,31 @@ interface Subscription {
   category?: string;
 }
 
+const getProfileCache = () => {
+  if (typeof window === 'undefined') return null;
+  
+  try {
+    const cached = localStorage.getItem('profile-cache');
+    return cached ? JSON.parse(cached) : null;
+  } catch (e) {
+    console.error('Error reading profile cache:', e);
+    return null;
+  }
+};
+
+const saveProfileCache = (data: any) => {
+  if (typeof window === 'undefined') return;
+  
+  try {
+    localStorage.setItem('profile-cache', JSON.stringify({
+      ...data,
+      timestamp: Date.now()
+    }));
+  } catch (e) {
+    console.error('Error saving profile cache:', e);
+  }
+};
+
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -39,14 +64,30 @@ export default function ProfilePage() {
   const [metadataUris, setMetadataUris] = useState<string[]>([]);
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [subscriptionsLoading, setSubscriptionsLoading] = useState(false);
+  const [initialLoad, setInitialLoad] = useState(true);
 
+
+  const cachedData = getProfileCache();
+
+  const shouldRefreshCache = () => {
+    if (!cachedData || !cachedData.timestamp) return true;
+    const fiveMinutesInMs = 5 * 60 * 1000;
+    return Date.now() - cachedData.timestamp > fiveMinutesInMs;
+  };
 
   useEffect(() => {
+    if (cachedData && !shouldRefreshCache() && initialLoad) {
+      setInitialLoad(false);
+      return;
+    }
+
     async function fetchUserProfile() {
       if (!authUser) return;
 
       try {
-        setLoading(true);
+        if (!cachedData) {
+          setLoading(true);
+        }
         
         // Get current auth session
         const { data: { session } } = await supabase.auth.getSession();
@@ -73,6 +114,14 @@ export default function ProfilePage() {
         setUser(userData);
         setMetadataUris(userData.metadata_uris || []);
         setLoading(false)
+
+        saveProfileCache({
+          user: userData,
+          walletAddress: walletAddress,
+          metadataUris: userData.metadata_uris || [],
+          subscriptions: [] // Will be updated later
+        });
+
       } catch (error) {
         console.error('Error fetching profile:', error);
       } finally {
@@ -81,10 +130,14 @@ export default function ProfilePage() {
     }
     
     fetchUserProfile();
-  }, [router, authUser]);
+  }, [router, authUser, initialLoad]);
 
     // Process metadata URIs to extract subscription data for analytics
   useEffect(() => {
+
+    if (cachedData?.subscriptions?.length > 0 && initialLoad && metadataUris.length === cachedData.metadataUris.length) {
+      return;
+    }
     async function processSubscriptionData() {
       if (metadataUris.length === 0) return;
       
@@ -115,6 +168,13 @@ export default function ProfilePage() {
         }
         
         setSubscriptions(subscriptionData);
+
+        saveProfileCache({
+          user,
+          walletAddress,
+          metadataUris,
+          subscriptions: subscriptionData
+        });
       } catch (error) {
         console.error('Error processing subscription data:', error);
       } finally {
@@ -123,7 +183,7 @@ export default function ProfilePage() {
     }
     
     processSubscriptionData();
-  }, [metadataUris]);
+  }, [metadataUris, initialLoad]);
 
   const handleResetWallet = async () => {
     try {
@@ -157,6 +217,7 @@ export default function ProfilePage() {
   };
 
   const handleLogout = async () => {
+    localStorage.removeItem('profile-cache');
     await supabase.auth.signOut();
     router.push('/authentication');
   };
