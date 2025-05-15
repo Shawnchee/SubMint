@@ -10,9 +10,14 @@ import { Button } from "./ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format } from "date-fns";
-import { CalendarIcon } from "lucide-react";
+import { CalendarIcon, PlusCircle, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+interface SharedUser {
+  name: string;
+  email: string;
+  wallet_address?: string;
+}
 
 export default function SubscriptionForm() {
   const wallet = useWallet();
@@ -33,10 +38,39 @@ export default function SubscriptionForm() {
   const [imageError, setImageError] = useState("");
   const [uploadingImage, setUploadingImage] = useState(false);
 
+  const [sharedUsers, setSharedUsers] = useState<SharedUser[]>([]);
+  const [newUserName, setNewUserName] = useState("");
+  const [newUserEmail, setNewUserEmail] = useState("");
+  const [newUserWallet, setNewUserWallet] = useState("");
   
 const formatDateString = (date: Date | undefined) => {
     if (!date) return "";
     return format(date, "dd/MM/yyyy");
+  };
+
+  const handleAddUser = async () => {
+    if (!newUserName.trim()) return;
+    
+    const newUser = {
+      name: newUserName.trim(),
+      email: newUserEmail.trim() || "",
+      wallet_address: newUserWallet.trim() || undefined
+    };
+    
+    // Add user to local state
+    setSharedUsers([...sharedUsers, newUser]);
+    
+    // Clear form fields
+    setNewUserName("");
+    setNewUserEmail("");
+    setNewUserWallet("");
+  };
+  
+  // Remove a shared user
+  const handleRemoveUser = (index: number) => {
+    const updatedUsers = [...sharedUsers];
+    updatedUsers.splice(index, 1);
+    setSharedUsers(updatedUsers);
   };
 
 const handleGenerateImage = async () => {
@@ -136,13 +170,42 @@ const handleSubmit = async (e: any) => {
       
       const uploadedImageData = await imageUploadResponse.json();
       
-      // Check if we have the expected fileUrl property
+      console.log("Uploaded image data:", uploadedImageData);
       if (!uploadedImageData.fileUrl) {
         throw new Error("Invalid response from image upload endpoint");
       }
       
       const imageUri = uploadedImageData.fileUrl;  // Make sure this matches your API's response structure
       setUploadingImage(false);
+
+      const sharedUserDbRecords = [];
+
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (session?.user && sharedUsers.length > 0) {
+        for (const user of sharedUsers) {
+          try {
+            const { data, error } = await supabase
+              .from("payment_users")
+              .insert({
+                user_name: user.name,
+                email: user.email || null,
+                wallet_address: user.wallet_address || null,
+                owner_id: session.user.id // Link to the current user
+              })
+              .select();
+              
+            if (error) throw error;
+            
+            if (data && data.length > 0) {
+              sharedUserDbRecords.push(data[0]);
+            }
+          } catch (error) {
+            console.error("Error adding user to Supabase:", error);
+            // Continue with others even if one fails
+          }
+        }
+      }
       
       // Then create and upload the metadata
       const metadataResponse = await fetch("/api/metadata-to-pinata", {
@@ -157,7 +220,11 @@ const handleSubmit = async (e: any) => {
           price,
           startDate: formattedStartDate,
           endDate: formattedEndDate,
-          proof
+          proof,
+          shared_users: sharedUsers.map(user => ({
+            name: user.name,
+            wallet_address: user.wallet_address || "None"
+          }))
         }),
       });
       
@@ -179,34 +246,82 @@ const handleSubmit = async (e: any) => {
       let mintAddress = result.mintAddress;
   
       // Store the mint result in Supabase
-      if (mintAddress) {
+if (mintAddress) {
         try {
-          // Get current auth session
-          const { data: { session } } = await supabase.auth.getSession();
-          
           if (session?.user) {
             // Get current NFT addresses from user profile
             const { data: userData } = await supabase
               .from('user')
-              .select('nft_address, metadata_uris')
+              .select('nft_address, metadata_uris, subscription_shared_users')
               .eq('id', session.user.id)
               .single();
             
             // Add the new NFT to the array
-            const updatedNftAddresses = [...(userData?.nft_address || []), mintAddress];
-            const updatedMetadataUris = [...(userData?.metadata_uris || []), metadataUri];
+                 const updatedNftAddresses = Array.isArray(userData?.nft_address) 
+        ? [...userData.nft_address, mintAddress] 
+        : [mintAddress];
+      
+      const updatedMetadataUris = Array.isArray(userData?.metadata_uris) 
+        ? [...userData.metadata_uris, metadataUri] 
+        : [metadataUri];
+            
+                  // For shared users, handle both the case where it doesn't exist and where it's an empty object
+      let currentSharedUsers = [];
+if (userData?.subscription_shared_users) {
+  if (typeof userData.subscription_shared_users === 'string') {
+    try {
+      currentSharedUsers = JSON.parse(userData.subscription_shared_users);
+    } catch (e) {
+      console.error("Error parsing shared users:", e);
+      currentSharedUsers = [];
+    }
+  } else {
+    currentSharedUsers = userData.subscription_shared_users;
+  }
+}
 
+// Ensure currentSharedUsers is an array
+if (!Array.isArray(currentSharedUsers)) {
+  currentSharedUsers = [];
+}
+
+// Create a new array element for this subscription
+const sharedUserIds = sharedUserDbRecords.map((u: any) => u.id);
+
+const newSharedUserEntry = {
+  mint_address: mintAddress,
+  user_ids: sharedUserIds,
+  metadata_uri: metadataUri
+};
+
+// Add to the existing array
+const updatedSharedUsers = [...currentSharedUsers, newSharedUserEntry];
+
+console.log("Preparing update with array structure:", {
+  nft_address: updatedNftAddresses,
+  metadata_uris: updatedMetadataUris,
+  subscription_shared_users: updatedSharedUsers
+});
             
             // Update the user profile
-            await supabase
-              .from('user')
-              .update({ 
-                nft_address: updatedNftAddresses,
-                metadata_uris: updatedMetadataUris,
-                updated_at: new Date().toISOString()
-              })
-              .eq('id', session.user.id);
+      const { data: updateResult, error: updateError } = await supabase
+        .from('user')
+        .update({ 
+          nft_address: updatedNftAddresses,
+          metadata_uris: updatedMetadataUris,
+          subscription_shared_users: updatedSharedUsers,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', session.user.id);
+
+        if (updateError) {
+        console.error("Error updating user:", updateError);
+        throw updateError;
+      }
+      
+      console.log("Update result:", updateResult);
           }
+
         } catch (error) {
           console.error("Error updating user profile with NFT:", error);
           // Continue even if this fails
@@ -383,6 +498,73 @@ const handleSubmit = async (e: any) => {
                 placeholder="Link of Proof (Google Drive, Dropbox, etc.)"
               />
             </div>
+
+             <div className="space-y-2 border-t border-white/10 pt-4 mt-6">
+                <label className="text-lg font-medium text-indigo-300">Shared Users</label>
+                <p className="text-xs text-slate-400 mb-4">Add people who share this subscription cost with you</p>
+                
+                {/* List of current shared users */}
+                {sharedUsers.length > 0 && (
+                  <div className="space-y-2 mb-4">
+                    {sharedUsers.map((user, index) => (
+                      <div 
+                        key={index} 
+                        className="flex justify-between items-center p-3 bg-slate-800/70 rounded-md border border-white/5"
+                      >
+                        <div>
+                          <p className="font-medium">{user.name}</p>
+                          <div className="flex text-xs text-slate-400">
+                            {user.email && <p className="mr-3">{user.email}</p>}
+                            {user.wallet_address && (
+                              <p className="font-mono">Wallet: {user.wallet_address.substring(0, 4)}...{user.wallet_address.substring(user.wallet_address.length - 4)}</p>
+                            )}
+                          </div>
+                        </div>
+                        <button 
+                          type="button"
+                          onClick={() => handleRemoveUser(index)}
+                          className="p-1 text-red-400 hover:text-red-300 transition-colors rounded-full"
+                        >
+                          <X size={16} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                
+                {/* Form to add new shared user */}
+                <div className="grid grid-cols-2 gap-2 mb-2">
+                  <input
+                    value={newUserName}
+                    onChange={(e) => setNewUserName(e.target.value)}
+                    className="p-2 bg-slate-800/50 backdrop-blur-sm rounded-md border border-white/10 focus:border-blue-400 focus:outline-none transition-colors text-white placeholder-slate-400"
+                    placeholder="Name (required)"
+                  />
+                  <input
+                    value={newUserEmail}
+                    onChange={(e) => setNewUserEmail(e.target.value)}
+                    className="p-2 bg-slate-800/50 backdrop-blur-sm rounded-md border border-white/10 focus:border-blue-400 focus:outline-none transition-colors text-white placeholder-slate-400"
+                    placeholder="Email (optional)"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    value={newUserWallet}
+                    onChange={(e) => setNewUserWallet(e.target.value)}
+                    className="flex-grow p-2 bg-slate-800/50 backdrop-blur-sm rounded-md border border-white/10 focus:border-blue-400 focus:outline-none transition-colors text-white placeholder-slate-400"
+                    placeholder="Wallet address (optional)"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddUser}
+                    disabled={!newUserName.trim()}
+                    className="bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-800/50 disabled:cursor-not-allowed text-white py-2 px-4 rounded-md transition-colors flex items-center"
+                  >
+                    <PlusCircle size={16} className="mr-1" />
+                    Add
+                  </button>
+                </div>
+              </div>
 
             {error && (
               <div className="bg-red-900/30 backdrop-blur-sm border border-red-500/50 rounded-md p-4 text-red-200">
