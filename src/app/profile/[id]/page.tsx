@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { CalendarIcon, PlusCircle, UserPlus, DollarSign, History } from "lucide-react"
+import {PlusCircle} from "lucide-react"
 import supabase from "@/lib/supabase/client"
 import { useRouter } from "next/navigation"
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { Connection, PublicKey, Keypair, clusterApiUrl, LAMPORTS_PER_SOL } from "@solana/web3.js";
+import {Keypair, clusterApiUrl} from "@solana/web3.js";
 import { createUmi } from "@metaplex-foundation/umi-bundle-defaults";
 import { 
   keypairIdentity, 

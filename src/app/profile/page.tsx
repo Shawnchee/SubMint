@@ -5,9 +5,8 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import supabase from '@/lib/supabase/client';
 import { clearBurnerWallet, getOrCreateBurnerWallet } from '@/lib/burner-wallet';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent} from "@/components/ui/card";
 import { useAuth } from '@/hooks/check-auth';
-import { Connection } from '@solana/web3.js';
 import NFTCard from '@/components/nft-card-owned';
 import SubscriptionStats from '@/components/subscription-stats';
 
@@ -57,7 +56,6 @@ export default function ProfilePage() {
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [nfts, setNfts] = useState<string[]>([]);
   const [walletAddress, setWalletAddress] = useState('');
   const [resetWalletLoading, setResetWalletLoading] = useState(false);
   const { user: authUser, loading: authloading } = useAuth();

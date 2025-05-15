@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import Image from 'next/image';
 import supabase from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
 import { getOrCreateBurnerWallet } from '@/lib/burner-wallet';
@@ -55,60 +54,6 @@ export default function AuthForms() {
     setMessage({ type: '', content: '' });
   };
 
-  // Comprehensive function to update or create user profile
-  const updateUserProfile = async (user: any) => {
-    try {
-      if (!user) return;
-      
-      // Get the burner wallet for this user
-      const burnerWallet = getOrCreateBurnerWallet();
-      
-      // Check if user already exists in our custom table
-      const { data: existingUser, error: fetchError } = await supabase
-        .from('user')
-        .select('*')
-        .eq('id', user.id)
-        .single();
-      
-      console.log("Existing user data:", existingUser);
-      
-      // Prepare user data object with all necessary fields
-      const userData = {
-        id: user.id,
-        email_address: user.email,
-        name: user.user_metadata?.full_name || name || user.user_metadata?.name || 'User',
-        burner_wallet_address: burnerWallet.publicKey.toString(),
-        updated_at: new Date().toISOString()
-      };
-      
-      if (existingUser) {
-        // Update existing user
-        const { error: updateError } = await supabase
-          .from('user')
-          .update(userData)
-          .eq('id', user.id);
-          
-        if (updateError) throw updateError;
-      } else {
-        // Create new user with complete data
-        const { error: insertError } = await supabase
-          .from('user')
-          .insert([{
-            ...userData,
-            nft_address: [],
-            created_at: new Date().toISOString()
-          }]);
-          
-
-      }
-      
-      console.log('User profile updated successfully');
-    } catch (error) {
-      console.error('Error updating user profile:', error);
-    }
-  };
-
-  // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);

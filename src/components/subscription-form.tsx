@@ -14,7 +14,6 @@ export default function SubscriptionForm() {
 
   const [title, setTitle] = useState("");
   const [price, setPrice] = useState("");
-  const [duration, setDuration] = useState("");
   const [recurringDate, setRecurringDate] = useState("");
   const [proof, setProof] = useState("");
   const [startDate, setStartDate] = useState("");
@@ -23,35 +22,102 @@ export default function SubscriptionForm() {
   const [txSignature, setTxSignature] = useState<any>(null);
   const [mintAddress, setMintAddress] = useState("");
   const [error, setError] = useState("");
-  
-  // For now, let's use a static image for all NFTs
-  const staticImageUri = "https://images.pexels.com/photos/218717/pexels-photo-218717.jpeg?auto=compress&cs=tinysrgb&w=600";
+  const [staticImageUri, setStaticImageUri] = useState("https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQ2zbGvCe-Ihgi4DETbEND8RPM0xX40AOI84Q&s");
+  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+  const [imagePrompt, setImagePrompt] = useState("");
+  const [imageError, setImageError] = useState("");
+  const [uploadingImage, setUploadingImage] = useState(false);
 
-  const handleSubmit = async (e: any) => {
-    e.preventDefault();
-    setLoading(true);
+  
+const handleGenerateImage = async () => {
+    if (!imagePrompt.trim()) {
+      setImageError("Please enter a description for the image");
+      return;
+    }
 
     try {
-      // Reset any previous errors
-      setError("");
+      setIsGeneratingImage(true);
+      setImageError("");
       
-      // First, upload the image to Pinata
+      const response = await fetch("/api/generate-image", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ prompt: imagePrompt }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to generate image");
+      }
+      
+      const data = await response.json();
+      
+      if (data.imageUrl) {
+        setStaticImageUri(data.imageUrl);
+      }
+      
+    } catch (error: any) {
+      console.error("Error generating image:", error);
+      setImageError(error.message || "Failed to generate image");
+    } finally {
+      setIsGeneratingImage(false);
+    }
+  };
+
+const handleSubmit = async (e: any) => {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+
+    try {
+      // First fetch the image as a blob
+      setUploadingImage(true);
+      
+      let imageBlob;
+      try {
+        // Fetch the image from the URL
+        const imageResponse = await fetch(staticImageUri);
+        
+        if (!imageResponse.ok) {
+          throw new Error("Failed to fetch image");
+        }
+        
+        imageBlob = await imageResponse.blob();
+      } catch (imageError) {
+        console.error("Error fetching image:", imageError);
+        throw new Error("Failed to process image. Please try again or use a different image.");
+      }
+      
+      // Create a file from the blob
+      const imageFile = new File([imageBlob], "subscription-image.jpg", { type: imageBlob.type });
+      
+      // Upload to Pinata via your API
       const imageData = new FormData();
-      
-      // For now using a static image, but you could allow image uploads
-      const imageResponse = await fetch(staticImageUri);
-      const imageBlob = await imageResponse.blob();
-      const imageFile = new File([imageBlob], "subscription-image.jpg", { type: "image/jpeg" });
-      imageData.set("file", imageFile);
+      imageData.append("file", imageFile);
       
       const imageUploadResponse = await fetch("/api/files", {
         method: "POST",
         body: imageData,
       });
       
-      const imageUri = await imageUploadResponse.json();
+      if (!imageUploadResponse.ok) {
+        const errorData = await imageUploadResponse.json();
+        throw new Error(errorData.error || "Failed to upload image to Pinata");
+      }
       
-      // Then, create and upload the metadata
+      const uploadedImageData = await imageUploadResponse.json();
+      
+      // Check if we have the expected fileUrl property
+      if (!uploadedImageData.fileUrl) {
+        throw new Error("Invalid response from image upload endpoint");
+      }
+      
+      const imageUri = uploadedImageData.fileUrl;  // Make sure this matches your API's response structure
+      setUploadingImage(false);
+      
+      // Then create and upload the metadata
       const metadataResponse = await fetch("/api/metadata-to-pinata", {
         method: "POST",
         headers: {
@@ -70,7 +136,8 @@ export default function SubscriptionForm() {
       });
       
       if (!metadataResponse.ok) {
-        throw new Error("Failed to upload metadata");
+        const errorData = await metadataResponse.json();
+        throw new Error(errorData.error || "Failed to upload metadata");
       }
       
       const { metadataUri } = await metadataResponse.json();
@@ -79,7 +146,7 @@ export default function SubscriptionForm() {
         wallet,
         title,
         description: `${title}: ${price}/mo (${startDate} to ${endDate})`,
-        metadataUri: metadataUri, // Use the Pinata metadata URI instead of direct image
+        metadataUri: metadataUri,
       });
       
       let signature = result.signature;
@@ -95,7 +162,7 @@ export default function SubscriptionForm() {
             // Get current NFT addresses from user profile
             const { data: userData } = await supabase
               .from('user')
-              .select('nft_address , metadata_uris' )
+              .select('nft_address, metadata_uris')
               .eq('id', session.user.id)
               .single();
             
@@ -127,6 +194,7 @@ export default function SubscriptionForm() {
       setError(error.message || "Failed to mint NFT. Please try again.");
     } finally {
       setLoading(false);
+      setUploadingImage(false);
     }
   };
 
@@ -143,12 +211,17 @@ export default function SubscriptionForm() {
         </CardHeader>
         
         <CardContent className="pt-6">
-          <div className="flex flex-row gap-8">
-            {/* TODO: Add a dynamic image upload option */}
-            {/* NFT Image Preview */}
-            <div className="flex-shrink-0">
-              <div className="relative w-40 h-40 rounded-lg overflow-hidden border border-white/20 shadow-lg group transition-all duration-300 hover:scale-105">
-                <div className="absolute inset-0 bg-gradient-to-br from-indigo-600/30 to-cyan-600/30 group-hover:opacity-70 transition-opacity"></div>
+        <div className="flex flex-col md:flex-row gap-8">
+          {/* NFT Image Preview and Generation */}
+          <div className="flex-shrink-0 space-y-4">
+            <div className="relative w-40 h-40 rounded-lg overflow-hidden border border-white/20 shadow-lg group transition-all duration-300 hover:scale-105">
+              <div className="absolute inset-0 bg-gradient-to-br from-indigo-600/30 to-cyan-600/30 group-hover:opacity-70 transition-opacity"></div>
+              {isGeneratingImage ? (
+                <div className="absolute inset-0 flex items-center justify-center bg-slate-800/70">
+                  <div className="animate-spin h-8 w-8 border-4 border-indigo-500 rounded-full border-t-transparent"></div>
+                  <span className="text-xs text-white ml-2">Generating...</span>
+                </div>
+              ) : (
                 <Image 
                   src={staticImageUri}
                   alt="Subscription NFT Image"
@@ -157,8 +230,32 @@ export default function SubscriptionForm() {
                   className="object-cover"
                   priority
                 />
-              </div>
+              )}
             </div>
+            
+            {/* Image Generation */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-slate-300">Generate Image</label>
+              <div className="flex space-x-2">
+                <textarea
+                  value={imagePrompt}
+                  onChange={(e) => setImagePrompt(e.target.value)}
+                  className="flex-grow p-2 bg-slate-800/50 backdrop-blur-sm rounded-md border border-white/10 focus:border-blue-400 focus:outline-none transition-colors text-white placeholder-slate-400 text-sm align-top"
+                  placeholder="Describe your image..."
+                />
+                <button
+                  type="button"
+                  onClick={handleGenerateImage}
+                  disabled={isGeneratingImage || !imagePrompt.trim()}
+                  className="bg-gradient-to-r from-indigo-600 to-cyan-700 hover:from-indigo-500 hover:to-cyan-600 text-white py-2 px-3 rounded-md transition-all disabled:opacity-50 text-sm flex-shrink-0"
+                >
+                  Generate
+                </button>
+              </div>
+              {imageError && <p className="text-red-400 text-xs">{imageError}</p>}
+              <p className="text-xs text-slate-400">Enter a description for AI to generate an image <br/> (example: Netflix logo with forest background) </p>
+            </div>
+          </div>
             
             {/* Form Fields */}
             <div className="flex-grow space-y-4 text-white">
