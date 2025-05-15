@@ -83,6 +83,8 @@ const handleGenerateImage = async () => {
       setIsGeneratingImage(true);
       setImageError("");
       
+      console.log("Sending image generation request with prompt:", imagePrompt);
+      
       const response = await fetch("/api/generate-image", {
         method: "POST",
         headers: {
@@ -91,20 +93,34 @@ const handleGenerateImage = async () => {
         body: JSON.stringify({ prompt: imagePrompt }),
       });
       
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to generate image");
+      // First, log the raw response for debugging
+      const responseText = await response.text();
+      console.log("Raw response from API:", responseText);
+      
+      // Try to parse the response as JSON
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (e) {
+        console.error("Failed to parse JSON response:", e);
+        throw new Error("Invalid response format from server");
       }
       
-      const data = await response.json();
+      console.log("Parsed response data:", data);
       
-    if (data.imageUrl && typeof data.imageUrl === 'string' && data.imageUrl.trim() !== '') {
-      setStaticImageUri(data.imageUrl);
-      console.log("Generated image URL:", data.imageUrl);
-    } else {
-      console.log("GenerateASasASd image URL:", data.imageUrl);
-      throw new Error("Received invalid image URL from generation service");
-    }
+      // Check if we got an error
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to generate image");
+      }
+      
+      // Verify we have a valid image URL
+      if (data.imageUrl && typeof data.imageUrl === 'string' && data.imageUrl.trim() !== '') {
+        console.log("Successfully received image URL:", data.imageUrl);
+        setStaticImageUri(data.imageUrl);
+      } else {
+        console.error("Invalid image URL received:", data);
+        throw new Error("Received invalid image URL from generation service");
+      }
       
     } catch (error: any) {
       console.error("Error generating image:", error);

@@ -1,23 +1,38 @@
 import { NextResponse } from "next/server";
 import Replicate from "replicate";
 
-// Set function timeout for Vercel
-export const maxDuration = 60;
-
-// Initialize Replicate client
-const replicate = new Replicate({
-  auth: process.env.REPLICATE_API_TOKEN,
-});
+// Set function timeout for Vercel (increase to handle longer generation times)
+export const maxDuration = 90;
 
 // Fallback image if all else fails
 const FALLBACK_IMAGE_URL = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQ2zbGvCe-Ihgi4DETbEND8RPM0xX40AOI84Q&s";
 
 export async function POST(request: Request) {
   try {
-    const { prompt } = await request.json();
+    // Verify API token is available
+    const apiToken = process.env.REPLICATE_API_TOKEN;
+    if (!apiToken) {
+      console.error("Missing Replicate API token");
+      return NextResponse.json({ 
+        error: "API configuration error", 
+        imageUrl: FALLBACK_IMAGE_URL 
+      }, { status: 500 });
+    }
+    
+    // Initialize Replicate with the token
+    const replicate = new Replicate({
+      auth: apiToken,
+    });
+    
+    // Parse request
+    const body = await request.json();
+    const { prompt } = body;
     
     if (!prompt) {
-      return NextResponse.json({ error: "Image prompt is required" }, { status: 400 });
+      return NextResponse.json({ 
+        error: "Image prompt is required",
+        imageUrl: FALLBACK_IMAGE_URL
+      }, { status: 400 });
     }
     
     console.log("Running Replicate image generation with prompt:", prompt);
@@ -32,7 +47,8 @@ export async function POST(request: Request) {
       }
     );
 
-    console.log("Replicate output:", output);
+    console.log("Replicate output type:", typeof output);
+    console.log("Replicate output value:", JSON.stringify(output));
     
     // Handle different output formats
     let imageUrl;
@@ -43,13 +59,19 @@ export async function POST(request: Request) {
     } else if (typeof output === 'string') {
       // Use directly if it's a string URL
       imageUrl = output;
+    } else if (output && typeof output === 'object') {
+      // Try to extract URL from object
+      if ('output' in output) imageUrl = output.output;
+      if ('image' in output) imageUrl = output.image;
+      if ('url' in output) imageUrl = output.url;
     }
     
-    if (!imageUrl) {
+    if (!imageUrl || typeof imageUrl !== 'string' || imageUrl.trim() === '') {
       console.log("No valid image URL from Replicate, using fallback");
       return NextResponse.json({
         imageUrl: FALLBACK_IMAGE_URL,
-        fallback: true
+        fallback: true,
+        originalOutput: output
       });
     }
 
@@ -57,6 +79,7 @@ export async function POST(request: Request) {
     console.log("Successfully generated image:", imageUrl);
     return NextResponse.json({
       imageUrl: imageUrl,
+      success: true
     });
   } catch (error: any) {
     console.error("Error in image generation:", error);
@@ -64,6 +87,6 @@ export async function POST(request: Request) {
       imageUrl: FALLBACK_IMAGE_URL,
       fallback: true,
       error: error.message || "Failed to generate image"
-    });
+    }, { status: 500 });
   }
 }
