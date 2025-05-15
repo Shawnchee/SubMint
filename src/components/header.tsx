@@ -29,14 +29,18 @@ export default function Header() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16 items-center">
           {/* Logo */}
-          <div className="flex-shrink-0">
-            <Link href="/" className="flex items-center">
-              <div className="h-8 w-8 rounded-full bg-gradient-to-r from-indigo-500 to-cyan-500 mr-2"></div>
-              <span className="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-300 to-cyan-300">
-                SubMint
-              </span>
-            </Link>
-          </div>
+              <div className="flex-shrink-0">
+                <Link href="/" className="flex items-center">
+                  <img 
+                    src="/logoSubmint.svg" 
+                    alt="SubMint Logo" 
+                    className="h-24 w-24"
+                  />
+                  <span className="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-300 to-cyan-300">
+                    SubMint
+                  </span>
+                </Link>
+              </div>
 
           {/* Desktop Navigation */}
           <div className="hidden md:flex md:items-center md:space-x-6">

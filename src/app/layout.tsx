@@ -17,6 +17,9 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "SubMint",
   description: "Mint your subscriptions easily!",
+  icons: {
+    icon: "/logoSubMint.svg"
+  }
 };
 
 export default function RootLayout({
