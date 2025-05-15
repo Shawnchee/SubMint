@@ -38,6 +38,7 @@ export async function POST(request: Request) {
     console.log("Running Replicate image generation with prompt:", prompt);
     
     // Call Replicate's image generation API
+    // Keeping the original model as requested
     const output = await replicate.run(
       "black-forest-labs/flux-schnell", 
       {
@@ -50,20 +51,46 @@ export async function POST(request: Request) {
     console.log("Replicate output type:", typeof output);
     console.log("Replicate output value:", JSON.stringify(output));
     
-    // Handle different output formats
+    // Handle different output formats with improved extraction
     let imageUrl;
     
     if (Array.isArray(output) && output.length > 0) {
       // Use the first URL if it's an array
       imageUrl = output[0];
+      console.log("Found image URL in array:", imageUrl);
     } else if (typeof output === 'string') {
       // Use directly if it's a string URL
       imageUrl = output;
+      console.log("Found direct string URL:", imageUrl);
     } else if (output && typeof output === 'object') {
-      // Try to extract URL from object
-      if ('output' in output) imageUrl = output.output;
-      if ('image' in output) imageUrl = output.image;
-      if ('url' in output) imageUrl = output.url;
+      // Try to extract URL from object with more thorough checks
+      console.log("Searching for URL in object properties");
+      
+      if ('output' in output) {
+        if (Array.isArray(output.output) && output.output.length > 0) {
+          imageUrl = output.output[0];
+          console.log("Found URL in output array:", imageUrl);
+        } else if (typeof output.output === 'string') {
+          imageUrl = output.output;
+          console.log("Found URL in output string:", imageUrl);
+        }
+      }
+      
+      if (!imageUrl && 'image' in output) {
+        imageUrl = output.image;
+        console.log("Found URL in image property:", imageUrl);
+      }
+      
+      if (!imageUrl && 'url' in output) {
+        imageUrl = output.url;
+        console.log("Found URL in url property:", imageUrl);
+      }
+      
+      // Additional check for nested arrays
+      if (!imageUrl && 'images' in output && Array.isArray(output.images) && output.images.length > 0) {
+        imageUrl = output.images[0];
+        console.log("Found URL in images array:", imageUrl);
+      }
     }
     
     if (!imageUrl || typeof imageUrl !== 'string' || imageUrl.trim() === '') {
