@@ -54,9 +54,13 @@ const handleGenerateImage = async () => {
       
       const data = await response.json();
       
-      if (data.imageUrl) {
-        setStaticImageUri(data.imageUrl);
-      }
+    if (data.imageUrl && typeof data.imageUrl === 'string' && data.imageUrl.trim() !== '') {
+      setStaticImageUri(data.imageUrl);
+      console.log("Generated image URL:", data.imageUrl);
+    } else {
+      console.log("GenerateASasASd image URL:", data.imageUrl);
+      throw new Error("Received invalid image URL from generation service");
+    }
       
     } catch (error: any) {
       console.error("Error generating image:", error);
@@ -247,7 +251,7 @@ const handleSubmit = async (e: any) => {
                   type="button"
                   onClick={handleGenerateImage}
                   disabled={isGeneratingImage || !imagePrompt.trim()}
-                  className="bg-gradient-to-r from-indigo-600 to-cyan-700 hover:from-indigo-500 hover:to-cyan-600 text-white py-2 px-3 rounded-md transition-all disabled:opacity-50 text-sm flex-shrink-0"
+                  className="bg-gradient-to-r from-indigo-600 to-cyan-700 hover:from-indigo-500 hover:to-cyan-600 text-white py-2 px-3 rounded-md transition-all disabled:opacity-50 text-sm flex-shrink-0 cursor-pointer"
                 >
                   Generate
                 </button>

@@ -8,12 +8,6 @@ interface NFTAttribute {
   value: string | number;
 }
 
-interface RecommendationCategory {
-  title: string;
-  recommendations: string[];
-  score: number; // Score out of 10
-}
-
 export async function POST(request: Request) {
   try {
     const { userId } = await request.json()
