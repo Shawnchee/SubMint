@@ -239,6 +239,7 @@ const handleSubmit = async (e: any) => {
           description: `${title}: ${price}/mo (${formattedStartDate} to ${formattedEndDate})`,
           imageUri,
           price,
+          recurringDate,
           startDate: formattedStartDate,
           endDate: formattedEndDate,
           proof,
