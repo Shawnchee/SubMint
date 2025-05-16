@@ -85,6 +85,7 @@ export default function AuthForms() {
             data: {
               full_name: name,
             },
+          emailRedirectTo: `${window.location.origin}`
           },
         });
   
