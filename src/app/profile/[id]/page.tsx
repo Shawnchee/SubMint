@@ -185,6 +185,7 @@ export default function PaymentTracker() {
       .eq("user_name", user.name)
       .maybeSingle();
       
+    console.log("Checking for existing user:", user.name, existingUser);
     if (checkError) {
       console.error("Error checking for existing user:", checkError);
       return null;
@@ -216,7 +217,6 @@ export default function PaymentTracker() {
           user_name: user.name,
           email: "",
           wallet_address: user.wallet_address || null,
-          from_metadata: true // Keep this flag to show the source
         })
         .select();
         
@@ -435,11 +435,15 @@ const handleUpdatePayment = async (userId: string, status: boolean) => {
   const getPaymentAmount = (userId: string) => {
     const paymentDate = `${selectedYear}-${selectedMonth}`
     const record = paymentRecords.find((p) => p.shared_user_id === userId && p.payment_date === paymentDate)
-    return record?.payment_amount || 
-      (typeof subscription.paymentAmount === 'number' 
-        ? subscription.paymentAmount 
-        : Number(subscription.paymentAmount) || 0)
-  }
+    const baseAmount = record?.payment_amount || 
+    (typeof subscription.paymentAmount === 'number' 
+      ? subscription.paymentAmount 
+      : Number(subscription.paymentAmount) || 0)
+  
+  // Divide by the total number of users (shared users + 1 for self)
+  const totalUsers = sharedUsers.length + 1
+  return baseAmount / totalUsers
+}
 
   // Get user name by ID
   const getUserName = (userId: string) => {
@@ -723,7 +727,7 @@ const getPaymentsByYearAndMonth = (year: string, month: string) => {
                                     </div>
                                   </div>
                                 </TableCell>
-                                <TableCell>${amount.toFixed(2)}</TableCell>
+                                <TableCell>${amount.toFixed(2)} </TableCell>
                                 <TableCell>
                                   <span
                                     className={`px-2 py-1 rounded-full text-sm font-medium ${

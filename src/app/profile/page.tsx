@@ -10,6 +10,8 @@ import { useAuth } from '@/hooks/check-auth';
 import NFTCard from '@/components/nft-card-owned';
 import SubscriptionStats from '@/components/subscription-stats';
 
+
+
 interface NFTMetadata {
   name: string;
   description: string;
@@ -24,6 +26,24 @@ interface Subscription {
   price: number;
   billing_cycle: string;
   category?: string;
+}
+
+interface NFTWithRelationship {
+  metadataUri: string;
+  mintAddress: string;
+  isParent: boolean;
+  childNfts?: ChildNft[];
+  sharedByName?: string;
+  sharedByWallet?: string;
+  userName?: string;
+  userEmail?: string;
+}
+
+interface ChildNft {
+  mintAddress: string;
+  metadataUri: string;
+  userId: string;
+  userName: string;
 }
 
 const getProfileCache = () => {
@@ -51,6 +71,12 @@ const saveProfileCache = (data: any) => {
   }
 };
 
+function formatWalletAddress(address: string): string {
+  if (!address) return '';
+  return `${address.slice(0, 4)}...${address.slice(-4)}`;
+}
+
+
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -63,7 +89,46 @@ export default function ProfilePage() {
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [subscriptionsLoading, setSubscriptionsLoading] = useState(false);
   const [initialLoad, setInitialLoad] = useState(true);
+  const [nftsWithRelationships, setNftsWithRelationships] = useState<NFTWithRelationship[]>([]);
+  const [sharedWithMeNfts, setSharedWithMeNfts] = useState<NFTWithRelationship[]>([]);
 
+
+useEffect(() => {
+  // Hardcoded NFT mint address
+  const hardcodedNftAddress = "iJPvM1myySujbHsSgceh4FB5b59H4AoreG67tJ4mdx9";
+  
+  // Fetch metadata for this specific NFT
+  async function fetchHardcodedNft() {
+    try {
+      // Use your provided metadata URI instead of fetching or using the old fallback
+      const metadataUri = "https://purple-historic-bird-762.mypinata.cloud/ipfs/bafkreig6cdjm5xeoydonoz3nchiz5hkje5wxosc2bfio3genxhtqgxof2u";
+      
+      // Create a hardcoded shared NFT entry
+      const hardcodedNft: NFTWithRelationship = {
+        mintAddress: hardcodedNftAddress,
+        metadataUri,
+        isParent: false,
+        sharedByName: "Shawn Chee",
+        sharedByWallet: "9GP7YDcpfLjnqzJJJm3SFjxnLh1W7vimNJKD5GRDVwc5",
+        userName: "You"
+      };
+      
+      // Add this NFT to the shared NFTs list
+      setSharedWithMeNfts(prev => {
+        // Check if it already exists to avoid duplicates
+        if (prev.some(nft => nft.mintAddress === hardcodedNftAddress)) {
+          return prev;
+        }
+        return [...prev, hardcodedNft];
+      });
+      
+    } catch (error) {
+      console.error("Error fetching hardcoded NFT:", error);
+    }
+  }
+  
+  fetchHardcodedNft();
+}, []); // Empty dependency array ensures this runs once on mount
 
   const cachedData = getProfileCache();
 
@@ -110,8 +175,51 @@ export default function ProfilePage() {
         
         // Set user data and NFTs
         setUser(userData);
-        setMetadataUris(userData.metadata_uris || []);
-        setLoading(false)
+        const nftAddresses = userData.nft_address || [];
+      const metadataUris = userData.metadata_uris || [];
+      const sharedUsersData = userData.subscription_shared_users || [];
+      
+      // Also fetch NFT relationships from database
+      const { data: relationships } = await supabase
+        .from('nft_relationships')
+        .select('*')
+        .in('parent_mint_address', nftAddresses);
+      
+      // Create structured NFT data with relationships
+      const structuredNfts: NFTWithRelationship[] = [];
+      
+      // Process each NFT
+      for (let i = 0; i < nftAddresses.length; i++) {
+        const mintAddress = nftAddresses[i];
+        const metadataUri = i < metadataUris.length ? metadataUris[i] : null;
+        
+        if (!metadataUri) continue;
+        
+        // Check if this is a parent NFT with child NFTs
+        const sharedEntry = sharedUsersData.find((entry: any) => entry.mint_address === mintAddress);
+        const isParent = !!sharedEntry;
+        
+        // Find child NFTs from relationships data
+        const childRelationships = relationships?.filter(rel => rel.parent_mint_address === mintAddress) || [];
+        
+        const childNfts = childRelationships.map(rel => ({
+          mintAddress: rel.child_mint_address,
+          metadataUri: metadataUri, // Child NFTs typically share parent's metadata
+          userId: rel.user_id,
+          userName: rel.user_name || 'Shared User'
+        }));
+        
+        structuredNfts.push({
+          mintAddress,
+          metadataUri,
+          isParent,
+          childNfts: isParent ? childNfts : undefined
+        });
+      }
+      
+        setNftsWithRelationships(structuredNfts);
+        setMetadataUris(metadataUris); 
+        setLoading(false);
 
         saveProfileCache({
           user: userData,
@@ -129,6 +237,110 @@ export default function ProfilePage() {
     
     fetchUserProfile();
   }, [router, authUser, initialLoad]);
+
+  useEffect(() => {
+    if (!walletAddress) return;
+      async function fetchSharedWithMeNFTs() {
+  try {
+    if (!walletAddress) return;
+
+    // First, get user entries from payment_users that match this wallet
+    const { data: matchedUsers } = await supabase
+      .from('payment_users')
+      .select('id, user_name, email')
+      .eq('wallet_address', walletAddress);
+
+    if (!matchedUsers || matchedUsers.length === 0) {
+      console.log("No matching payment users found for this wallet");
+      return;
+    }
+    console.log("Matched users:", matchedUsers);
+
+    // Get the IDs of matching users
+    const userIds = matchedUsers.map(user => user.id);
+
+    // Now fetch NFT relationships where the payment_user_id matches any of our found IDs
+const { data: sharedWithMeRelations } = await supabase
+  .from('nft_relationships')
+  .select('*, parent_mint_address, child_mint_address')
+  .in('user_id', userIds);
+
+    if (!sharedWithMeRelations || sharedWithMeRelations.length === 0) {
+      console.log("No NFT relationships found for this user");
+      return;
+    }
+
+    console.log("Shared with me relations:", sharedWithMeRelations);
+    // Get the parent NFT addresses to fetch their metadata
+    const parentNftAddresses = [...new Set(sharedWithMeRelations.map(rel => rel.parent_mint_address))];
+    
+    // Fetch parent NFT metadata
+    const sharedNFTs: NFTWithRelationship[] = [];
+    
+    for (const parentAddress of parentNftAddresses) {
+      // Find the relation for this parent
+      const relation = sharedWithMeRelations.find(rel => rel.parent_mint_address === parentAddress);
+      
+      if (!relation) continue;
+
+      // Get the child NFT that belongs to this user
+      const childAddress = relation.child_mint_address;
+      
+      // Find the user who matched
+      const matchedUser = matchedUsers.find(user => user.id === relation.payment_user_id);
+      if (!matchedUser) continue;
+      
+      // Try to fetch metadata URI from our nft_metadata table first
+      const { data: nftData } = await supabase
+        .from('nft_metadata')
+        .select('metadata_uri')
+        .eq('mint_address', childAddress)
+        .single();
+      
+      let metadataUri = nftData?.metadata_uri;
+      
+      // If we couldn't find it, try to get it from the parent NFT
+      if (!metadataUri) {
+        const { data: parentData } = await supabase
+          .from('nft_metadata')
+          .select('metadata_uri')
+          .eq('mint_address', parentAddress)
+          .single();
+          
+        metadataUri = parentData?.metadata_uri;
+      }
+      
+      // If we still don't have metadata, try getting from the URI stored in the relationship
+      if (!metadataUri && relation.metadata_uri) {
+        metadataUri = relation.metadata_uri;
+      }
+      
+      if (metadataUri) {
+        sharedNFTs.push({
+          mintAddress: childAddress,
+          metadataUri,
+          isParent: false,
+          sharedByName: relation.owner_name || 'Unknown',
+          sharedByWallet: relation.owner_wallet_address,
+          userName: matchedUser.user_name || 'You',
+          userEmail: matchedUser.email
+        });
+      }
+    }
+    
+    console.log("Shared NFTs fetched successfully:", sharedNFTs);
+    setSharedWithMeNfts(sharedNFTs);
+    
+  } catch (error) {
+    console.error('Error fetching shared NFTs:', error);
+  }
+}
+
+  fetchSharedWithMeNFTs();
+
+  }, [walletAddress]);
+
+  
 
     // Process metadata URIs to extract subscription data for analytics
   useEffect(() => {
@@ -317,37 +529,79 @@ export default function ProfilePage() {
           </Card>
         </div>
         
-        {/* NFT Collection Section */}
-        <div className="mb-8">
-          <h2 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-300 to-cyan-300 mb-6">
-            Your Subscription NFTs
-          </h2>
+<div className="mb-8">
+  <h2 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-300 to-cyan-300 mb-6">
+    Your Subscription NFTs
+  </h2>
 
-          {metadataUris.length === 0 ? (
-   <div className="bg-slate-800/40 backdrop-blur-md border border-white/10 rounded-xl p-8 text-center">
-   <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-slate-700/70 flex items-center justify-center">
-     <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-     </svg>
-   </div>
-   <h3 className="text-xl font-medium text-white mb-2">No NFTs Yet</h3>
-   <p className="text-slate-400 mb-6">You haven't created any subscription NFTs yet.</p>
-   <button
-     onClick={() => router.push('/')}
-     className="bg-gradient-to-r from-indigo-600 to-cyan-700 hover:from-indigo-500 hover:to-cyan-600 text-white py-2 px-6 rounded-md transition-all duration-300 shadow-lg"
-   >
-     Create Your First NFT
-   </button>
- </div>
+  {nftsWithRelationships.length === 0 ? (
+    <div className="bg-slate-800/40 backdrop-blur-md border border-white/10 rounded-xl p-8 text-center">
+      <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-slate-700/70 flex items-center justify-center">
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+        </svg>
+      </div>
+      <h3 className="text-xl font-medium text-white mb-2">No NFTs Yet</h3>
+      <p className="text-slate-400 mb-6">You haven't created any subscription NFTs yet.</p>
+      <button
+        onClick={() => router.push('/')}
+        className="bg-gradient-to-r from-indigo-600 to-cyan-700 hover:from-indigo-500 hover:to-cyan-600 text-white py-2 px-6 rounded-md transition-all duration-300 shadow-lg"
+      >
+        Create Your First NFT
+      </button>
+    </div>
   ) : (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-      {metadataUris.map((uri, index) => (
-        <NFTCard key={index} metadataUri={uri} />
+    <div className="space-y-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {nftsWithRelationships.map((nft, index) => (
+        <div key={index} className="bg-slate-800/60 backdrop-blur-md border border-white/10 rounded-xl overflow-hidden">
+          {/* Parent NFT */}
+          <div className="p-4">
+            <NFTCard metadataUri={nft.metadataUri} />
+            
+          </div>
+        </div>
       ))}
     </div>
-    
   )}
+</div>
+
+{/* Shared With Me Section */}
+{sharedWithMeNfts.length > 0 && (
+  <div className="mb-12">
+    <h2 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-pink-300 to-purple-300 mb-6">
+      Subscriptions Shared With Me
+    </h2>
+    
+    <div className="space-y-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {sharedWithMeNfts.map((nft, index) => (
+        <div key={index} className="bg-slate-800/60 backdrop-blur-md border border-purple-800/30 rounded-xl overflow-hidden">
+          <div className="p-4">
+            <div className="mb-3 flex items-center text-sm text-purple-300">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 11.5V14m0-2.5v-6a1.5 1.5 0 113 0m-3 6a1.5 1.5 0 00-3 0v2a7.5 7.5 0 0015 0v-5a1.5 1.5 0 00-3 0m-6-3V11m0-5.5v-1a1.5 1.5 0 013 0v1m0 0V11m0-5.5a1.5 1.5 0 013 0v3m0 0V11" />
+              </svg>
+              Shared by: {nft.sharedByName || 'Unknown'}
+            </div>
+            
+            <NFTCard metadataUri={nft.metadataUri} />
+            
+            <div className="mt-3 text-xs text-slate-400">
+              NFT: {formatWalletAddress(nft.mintAddress)}
+              <a 
+                href={`https://explorer.solana.com/address/${nft.mintAddress}?cluster=devnet`}
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="ml-2 text-indigo-400 hover:text-indigo-300 transition-colors"
+              >
+                View on Explorer ↗
+              </a>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
   </div>
+)}
   
         {/* Subscription Analytics Section */}
         <div className="mt-12">{user && <SubscriptionStats userId={user.id} subscriptions={subscriptions} />}</div>
