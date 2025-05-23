@@ -89,13 +89,13 @@ export default function HomePage() {
                   <div className="w-3 h-3 rounded-full bg-green-500"></div>
                 </div>
               </div>
-              <div className="p-6">
-                <img
-                  src="/placeholder.svg?height=600&width=1000"
-                  alt="Dashboard Preview"
-                  className="rounded-lg shadow-lg w-full"
-                />
-              </div>
+<div className="p-6 flex justify-center">
+  <img
+    src="/imagehero.png"
+    alt="Dashboard Preview"
+    className="rounded-lg shadow-lg w-full max-w-[800px] md:md:max-h-[1000px]"
+  />
+</div>
             </div>
           </div>
         </div>
